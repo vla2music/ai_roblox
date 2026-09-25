@@ -82,3 +82,35 @@ if arrows then
 		end
 	end)
 end
+
+-- Огни: колесо переливается радугой, лампочки горок бегут волной,
+-- мигалки на крышах мигают
+local rimParts, bulbs, blinks = {}, {}, {}
+if wheel then
+	for _, p in ipairs(wheel:WaitForChild("Ротор"):GetChildren()) do
+		if p.Material == Enum.Material.Neon then table.insert(rimParts, p) end
+	end
+end
+for _, d in ipairs(city:GetDescendants()) do
+	if d:IsA("BasePart") then
+		if d:GetAttribute("Bulb") then table.insert(bulbs, d) end
+		if d:GetAttribute("Blink") then table.insert(blinks, d) end
+	end
+end
+task.spawn(function()
+	local step = 0
+	while true do
+		step += 1
+		for i, p in ipairs(rimParts) do
+			p.Color = Color3.fromHSV(((i / #rimParts) + step * 0.03) % 1, 0.8, 1)
+		end
+		for _, b in ipairs(bulbs) do
+			local on = (b:GetAttribute("Bulb") / 2 + step) % 4 < 2
+			b.Color = on and Color3.fromRGB(255, 235, 140) or Color3.fromRGB(80, 60, 30)
+		end
+		for _, b in ipairs(blinks) do
+			b.Transparency = step % 6 < 3 and 0 or 0.9
+		end
+		task.wait(0.15)
+	end
+end)

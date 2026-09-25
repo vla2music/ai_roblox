@@ -73,21 +73,29 @@ chevrons:SetAttribute("X1", X1 + 10)
 chevrons:SetAttribute("X2", X2 - 10)
 chevrons:SetAttribute("Speed", BELT_SPEED)
 
--- развороты полукругом
+-- развороты: полукруг из коротких кусочков ленты, каждый толкает по касательной
 for _, e in ipairs({ { X2, 1 }, { X1, -1 } }) do
 	local cx, side = e[1], e[2]
-	local n = 10
+	local R = GAP / 2                 -- радиус по центру ленты
+	local n = 18
 	for k = 0, n - 1 do
 		local a = (k + 0.5) / n * math.pi
-		-- угол от ближней ленты к дальней
-		local px = cx + side * math.sin(a) * GAP / 2
-		local pz = PATH_Z - math.cos(a) * GAP / 2
-		local tangent = Vector3.new(side * math.cos(a), 0, math.sin(a))
-		local seg = belt(CFrame.lookAt(Vector3.new(px, y, pz), Vector3.new(px, y, pz) + tangent) * CFrame.Angles(0, math.rad(90), 0),
-			LANE * 0.7, tangent, Color3.fromRGB(255, 220, 60))
-		seg.Size = Vector3.new(GAP * 0.5, 1, LANE)
+		local center = Vector3.new(cx + side * math.sin(a) * R, y, PATH_Z - math.cos(a) * R)
+		-- направление движения: на X2 от ближней к дальней, на X1 наоборот
+		local tangent = Vector3.new(side * math.cos(a), 0, math.sin(a)) * (side > 0 and 1 or -1)
+		local b = part({
+			Parent = belts, Size = Vector3.new(LANE, 1, (R + LANE / 2) * math.pi / n + 1.2),
+			CFrame = CFrame.lookAt(center, center + tangent),
+			Color = Color3.fromRGB(40, 190, 255):Lerp(Color3.fromRGB(255, 120, 60), side > 0 and k / n or 1 - k / n),
+		})
+		b.AssemblyLinearVelocity = tangent * BELT_SPEED
+		b:SetAttribute("Vel", tangent * BELT_SPEED)
+		-- внешний бортик
+		local rim = Vector3.new(cx + side * math.sin(a) * (R + LANE / 2 + 0.4), y + 0.8, PATH_Z - math.cos(a) * (R + LANE / 2 + 0.4))
+		part({ Size = Vector3.new(0.6, 1.6, (R + LANE) * math.pi / n + 0.6), CFrame = CFrame.lookAt(rim, rim + tangent), Color = Color3.fromRGB(230, 230, 240), Material = Enum.Material.Metal })
 	end
 end
+
 -- бортики и надпись
 for _, z in ipairs({ PATH_Z - GAP / 2 - LANE / 2 - 0.3, PATH_Z + GAP / 2 + LANE / 2 + 0.3 }) do
 	part({ Size = Vector3.new(X2 - X1, 1.6, 0.6), Position = Vector3.new((X1 + X2) / 2, y + 0.8, z), Color = Color3.fromRGB(230, 230, 240), Material = Enum.Material.Metal })
@@ -105,33 +113,87 @@ for i = 0, 5 do
 end
 
 --=========================================================================
--- Город: небоскрёбы со светящимися окнами
+-- Неоновый киберквартал: тёмные башни, светящиеся окна, неоновые рёбра
+-- и вывески, повёрнутые к клубам
 --=========================================================================
 
-part({ Size = Vector3.new(700, 1, 200), Position = Vector3.new(620, GROUND + 0.3, 270), Color = Color3.fromRGB(60, 62, 70), Material = Enum.Material.Asphalt })
+part({ Size = Vector3.new(700, 1, 200), Position = Vector3.new(620, GROUND + 0.3, 270), Color = Color3.fromRGB(30, 30, 38), Material = Enum.Material.Asphalt })
 
-local palette = {
-	Color3.fromRGB(90, 110, 150), Color3.fromRGB(150, 90, 120), Color3.fromRGB(80, 140, 140),
-	Color3.fromRGB(170, 150, 110), Color3.fromRGB(110, 100, 160),
+local NEON = {
+	Color3.fromRGB(255, 50, 200), Color3.fromRGB(0, 230, 255), Color3.fromRGB(170, 80, 255),
+	Color3.fromRGB(255, 200, 40), Color3.fromRGB(60, 255, 140),
 }
-for x = 320, 920, 50 do
-	for z = 200, 330, 55 do
-		if rng:NextNumber() < 0.85 then
-			local h = rng:NextInteger(40, 130)
-			local w = rng:NextInteger(26, 36)
-			local base = Vector3.new(x + rng:NextInteger(-4, 4), GROUND + 0.8 + h / 2, z)
-			part({ Size = Vector3.new(w, h, w), Position = base, Color = palette[rng:NextInteger(1, #palette)], Material = Enum.Material.Concrete })
-			-- полосы окон
-			for y = GROUND + 8, GROUND + h - 4, 9 do
-				part({ Size = Vector3.new(w + 0.3, 2.2, w + 0.3), Position = Vector3.new(base.X, y, base.Z),
-					Color = rng:NextNumber() < 0.5 and Color3.fromRGB(255, 230, 150) or Color3.fromRGB(150, 210, 255),
-					Material = Enum.Material.Glass, Transparency = 0.2 })
+local SIGNS = { "ARCADE", "PIZZA", "ESPORTS", "GAME ZONE", "CYBER", "NEON CAFE", "24/7", "NAZAR CLUB", "VR WORLD", "BURGERS" }
+local WINDOW_ON = { Color3.fromRGB(255, 225, 150), Color3.fromRGB(160, 220, 255), Color3.fromRGB(255, 160, 220) }
+
+local function tower(x, z, w, d, h, signText)
+	local neon = NEON[rng:NextInteger(1, #NEON)]
+	local base = Vector3.new(x, GROUND + 0.8, z)
+	part({ Size = Vector3.new(w, h, d), Position = base + Vector3.new(0, h / 2, 0), Color = Color3.fromRGB(28, 26, 40), Material = Enum.Material.Glass, Reflectance = 0.15 })
+	-- неоновые рёбра по углам и по крыше
+	for _, c in ipairs({ { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } }) do
+		part({ Size = Vector3.new(0.6, h, 0.6), Position = base + Vector3.new(c[1] * w / 2, h / 2, c[2] * d / 2), Color = neon, Material = Enum.Material.Neon, CanCollide = false })
+	end
+	part({ Size = Vector3.new(w + 0.6, 0.6, d + 0.6), Position = base + Vector3.new(0, h, 0), Color = neon, Material = Enum.Material.Neon, CanCollide = false })
+	-- окна на фасаде к клубам (-Z): часть горит, часть тёмная
+	local cols = math.floor(w / 5)
+	for fy = 6, h - 5, 6 do
+		for cx = 1, cols do
+			if rng:NextNumber() < 0.55 then
+				part({
+					Size = Vector3.new(2.6, 3, 0.2),
+					Position = base + Vector3.new(-w / 2 + (cx - 0.5) * (w / cols), fy, -d / 2 - 0.1),
+					Color = WINDOW_ON[rng:NextInteger(1, #WINDOW_ON)], Material = Enum.Material.Neon, CanCollide = false,
+				})
 			end
-			-- мигалка на крыше
-			part({ Size = Vector3.new(1.5, 1.5, 1.5), Position = Vector3.new(base.X, GROUND + h + 1.6, base.Z), Color = Color3.fromRGB(255, 60, 60), Material = Enum.Material.Neon })
+		end
+	end
+	-- вывеска
+	if signText then
+		local sy = math.min(h - 8, rng:NextInteger(14, 26))
+		local sign = part({ Size = Vector3.new(w * 0.85, 7, 0.4), Position = base + Vector3.new(0, sy, -d / 2 - 0.6), Color = Color3.fromRGB(10, 10, 15) })
+		part({ Size = Vector3.new(w * 0.85 + 0.8, 7.8, 0.2), Position = sign.Position + Vector3.new(0, 0, 0.25), Color = neon, Material = Enum.Material.Neon })
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.LightInfluence = 0
+		gui.Brightness = 2
+		gui.Parent = sign
+		local l = Instance.new("TextLabel")
+		l.Size = UDim2.fromScale(1, 1)
+		l.BackgroundTransparency = 1
+		l.Font = Enum.Font.GothamBlack
+		l.TextScaled = true
+		l.Text = signText
+		l.TextColor3 = neon
+		l.Parent = gui
+	end
+	-- мигалка на крыше
+	local blink = part({ Size = Vector3.new(1.5, 1.5, 1.5), Position = base + Vector3.new(0, h + 1.4, 0), Color = Color3.fromRGB(255, 50, 50), Material = Enum.Material.Neon })
+	blink:SetAttribute("Blink", true)
+end
+
+local si = 1
+for x = 330, 910, 58 do
+	for row, z in ipairs({ 205, 265, 325 }) do
+		if rng:NextNumber() < 0.9 then
+			local h = row == 1 and rng:NextInteger(35, 70) or rng:NextInteger(60, 140)
+			local label = row == 1 and SIGNS[(si - 1) % #SIGNS + 1] or nil
+			if label then si += 1 end
+			tower(x + rng:NextInteger(-4, 4), z, rng:NextInteger(30, 40), rng:NextInteger(26, 34), h, label)
 		end
 	end
 	task.wait()
+end
+
+-- фонари вдоль дорожки
+for x = -100, 1300, 60 do
+	part({ Size = Vector3.new(0.8, 16, 0.8), Position = Vector3.new(x, GROUND + 8, PATH_Z + 13), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
+	local lamp = part({ Size = Vector3.new(2.4, 1.2, 2.4), Position = Vector3.new(x, GROUND + 16.4, PATH_Z + 13), Color = Color3.fromRGB(255, 230, 170), Material = Enum.Material.Neon })
+	local light = Instance.new("PointLight")
+	light.Range = 30
+	light.Brightness = 1.5
+	light.Color = Color3.fromRGB(255, 220, 170)
+	light.Parent = lamp
 end
 
 --=========================================================================
@@ -206,6 +268,11 @@ for i = 0, N - 1 do
 	local seg = part({ Parent = track, Name = "Рельс", Size = Vector3.new(5, 0.8, (p2 - p1).Magnitude + 0.3), CFrame = CFrame.lookAt((p1 + p2) / 2, p2),
 		Color = Color3.fromRGB(230, 60, 60), Material = Enum.Material.Metal })
 	seg:SetAttribute("Index", i)
+	if i % 2 == 0 then
+		local bulb = part({ Parent = coaster, Name = "Лампочка", Shape = Enum.PartType.Ball, Size = Vector3.new(1, 1, 1), Position = p1 + Vector3.new(0, 0.9, 0),
+			Color = Color3.fromRGB(255, 230, 120), Material = Enum.Material.Neon, CanCollide = false })
+		bulb:SetAttribute("Bulb", i)
+	end
 	if i % 5 == 0 then
 		part({ Parent = coaster, Size = Vector3.new(1.2, p1.Y - GROUND, 1.2), Position = Vector3.new(p1.X, (p1.Y + GROUND) / 2, p1.Z), Color = Color3.fromRGB(240, 240, 245), Material = Enum.Material.Metal })
 	end

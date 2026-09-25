@@ -94,7 +94,10 @@ local CONFIG = {
 	CLICK_BONUS    = 0.3,    -- бонус за нажатие = доход в секунду * это число
 	MAX_COINS      = 40,     -- больше монет на площадке не лежит, они «слипаются»
 
-	SERVER_BOOST   = 1.5,    -- серверная умножает весь доход
+	SERVER_BOOST   = 1.5,
+	-- В Studio создатель автоматически «владеет» всеми геймпассами, из-за этого
+	-- монеты не падают (авто-сбор). true = в Studio играем как обычный игрок.
+	STUDIO_IGNORE_PASSES = true,    -- серверная умножает весь доход
 
 	-- Геймпассы (табло у входа). id = 0 — ещё не создан, карточка пишет «скоро».
 	-- Создать: create.roblox.com -> игра -> Monetization -> Passes -> Create,
@@ -409,6 +412,8 @@ local INNER_COLOR = Color3.fromRGB(110, 100, 135)
 -- Стены прямоугольника с проёмами-дверями.
 -- rect = {x1, z1, x2, z2} (клетки), doors = {{"N"/"S"/"W"/"E", где, ширина}}
 -- skip = {N=true,...} — сторону не строить (там уже есть другая стена)
+local NEON_TRIM = Color3.fromRGB(0, 230, 255)   -- неоновые плинтусы
+
 local function buildWalls(parent, origin, rect, doors, skip, height, color)
 	local x1, z1, x2, z2 = rect[1], rect[2], rect[3], rect[4]
 	skip = skip or {}
@@ -442,8 +447,10 @@ local function buildWalls(parent, origin, rect, doors, skip, height, color)
 				local len = (seg[2] - seg[1]) * S
 				if side.horizontal then
 					box(parent, origin, Vector3.new(len, height, 1), mid, height / 2, side.fixed, color)
+					box(parent, origin, Vector3.new(len, 0.35, 1.3), mid, 0.4, side.fixed, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 				else
 					box(parent, origin, Vector3.new(1, height, len), side.fixed, height / 2, mid, color)
+					box(parent, origin, Vector3.new(1.3, 0.35, len), side.fixed, 0.4, mid, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 				end
 			end
 		end
@@ -540,7 +547,7 @@ end
 
 -- Модель из магазина (ресепшн, автомат...)
 -- Человечек-администратор за стойкой
-local function spawnAdmin(origin, model)
+local function spawnAdmin(origin, model, desk)
 	local ok, npc = pcall(function()
 		local desc = Instance.new("HumanoidDescription")
 		desc.Shirt = 0
@@ -557,19 +564,23 @@ local function spawnAdmin(origin, model)
 	npc.HumanoidRootPart.Anchored = true
 	npc.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	-- стоит за стойкой, лицом к залу
-	npc:PivotTo(at(origin, -17.5, 3.2, 10) * CFrame.Angles(0, math.rad(-90), 0))
+	-- в центре изгиба стойки, ногами на полу, лицом к залу (+X)
+	local center = desk and desk:GetBoundingBox().Position or at(origin, -13, 0, 10).Position
+	local root = npc.HumanoidRootPart
+	local pos = Vector3.new(center.X - 1.5, origin.Y + npc.Humanoid.HipHeight + root.Size.Y / 2, center.Z)
+	npc:PivotTo(CFrame.lookAt(pos, pos + Vector3.new(1, 0, 0)))
 	npc.Parent = model
 	local head = npc:FindFirstChild("Head")
 	if head then addLabel(head, "ADMIN", Color3.fromRGB(120, 220, 255), 2) end
 end
 
 function builders.model(item, origin, model)
-	if item.id == "admin" then spawnAdmin(origin, model) end
 	local cf = at(origin, item.pos[1], 0, item.pos[2]) * CFrame.Angles(0, math.rad(item.rot or 0), 0)
 	local m = cloneTemplate(item.model, item.scale)
 	if m then
 		m:PivotTo(cf)
 		m.Parent = model
+		if item.id == "admin" then spawnAdmin(origin, model, m) end
 	else
 		makePart({ Size = Vector3.new(6, 4, 3), CFrame = cf * CFrame.new(0, 2, 0), Color = Color3.fromRGB(60, 120, 200), Parent = model })
 	end
@@ -1306,7 +1317,8 @@ end
 local function checkPasses(player)
 	for _, pass in ipairs(CONFIG.GAMEPASSES) do
 		local owns = false
-		if pass.id ~= 0 then
+		local ignore = CONFIG.STUDIO_IGNORE_PASSES and game:GetService("RunService"):IsStudio()
+		if pass.id ~= 0 and not ignore then
 			local ok, res = pcall(function()
 				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.id)
 			end)
@@ -1607,11 +1619,12 @@ end
 
 -- Атмосфера клуба: мягкий вечерний свет, лёгкая дымка
 local function setupAtmosphere()
-	Lighting.ClockTime = 16
-	Lighting.Brightness = 2.5
-	Lighting.ExposureCompensation = 0.2
-	Lighting.Ambient = Color3.fromRGB(165, 150, 190)
-	Lighting.OutdoorAmbient = Color3.fromRGB(170, 160, 195)
+	-- ночь: неон и огни города видно лучше всего
+	Lighting.ClockTime = 0
+	Lighting.Brightness = 1.5
+	Lighting.ExposureCompensation = 0.3
+	Lighting.Ambient = Color3.fromRGB(95, 85, 135)
+	Lighting.OutdoorAmbient = Color3.fromRGB(110, 100, 160)
 	Lighting.EnvironmentDiffuseScale = 0.5
 	Lighting.EnvironmentSpecularScale = 0.5
 
@@ -1623,9 +1636,9 @@ local function setupAtmosphere()
 	end
 
 	local bloom = ensure("BloomEffect", "КлубBloom")
-	bloom.Intensity = 0.3
+	bloom.Intensity = 0.6
 	bloom.Size = 18
-	bloom.Threshold = 1.5
+	bloom.Threshold = 1.1
 
 	local cc = ensure("ColorCorrectionEffect", "КлубЦвет")
 	cc.Saturation = 0.2
