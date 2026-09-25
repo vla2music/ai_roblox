@@ -139,12 +139,12 @@ local ITEMS = {
 
 	{ id="hall",  name="Общий зал", en="Main Hall", cost=600, income=4, needs="shop",
 	  kind="room", rect={13, 0.5, 60, 35}, doors={{"W", 31, 4}}, skip={E=true, S=true}, floor=Color3.fromRGB(70, 60, 95), btn={8, 31} },
-	{ id="hall1", name="Ряд компов 1", en="PC Row 1", cost=900,  income=12, needs="hall",  kind="pcs",
-	  pcs={{20,8},{28,8},{36,8},{44,8},{52,8}},    rot=0, btn={36, 3} },
-	{ id="hall2", name="Ряд компов 2", en="PC Row 2", cost=1600, income=18, needs="hall1", kind="pcs",
-	  pcs={{20,17},{28,17},{36,17},{44,17},{52,17}}, rot=0, btn={36, 12.5} },
-	{ id="hall3", name="Ряд компов 3", en="PC Row 3", cost=2800, income=26, needs="hall2", kind="pcs",
-	  pcs={{20,26},{28,26},{36,26},{44,26},{52,26}}, rot=0, btn={36, 21.5} },
+	{ group="hall1", name="ПК в зале", en="Hall PC", minTier=2, kind="pcs",
+	  pcs={{20,8},{28,8},{36,8},{44,8},{52,8}},    rot=0, btnDz=-4.5 },
+	{ group="hall2", name="ПК в зале", en="Hall PC", minTier=2, kind="pcs",
+	  pcs={{20,17},{28,17},{36,17},{44,17},{52,17}}, rot=0, btnDz=-4.5 },
+	{ group="hall3", name="ПК в зале", en="Hall PC", minTier=2, kind="pcs",
+	  pcs={{20,26},{28,26},{36,26},{44,26},{52,26}}, rot=0, btnDz=-4.5 },
 
 	{ id="toilet", name="Туалет", en="Restroom", cost=3500, income=26, needs="hall3",
 	  kind="room", rect={-31, 20, -19, 35}, doors={{"E", 25, 4}}, skip={S=true}, extra="toilet",
@@ -153,20 +153,22 @@ local ITEMS = {
 	  kind="lounge", btn={4, 30} },
 	{ id="sofaset", name="Диван и стулья", en="Sofa & Chairs", cost=7000, income=20, needs="lounge",
 	  kind="sofaset", btn={-2, -9} },
-	{ id="toprow", name="Ряд из 6 компов", en="6 PC Row", cost=10000, income=30, needs="sofaset", kind="pcs",
-	  pcs={{19,-31},{25,-31},{31,-31},{37,-31},{43,-31},{49,-31}}, rot=0, btn={34, -25} },
+	{ group="toprow", name="ПК у стены", en="Wall PC", kind="pcs",
+	  pcs={{19,-31},{25,-31},{31,-31},{37,-31},{43,-31},{49,-31}}, rot=0, btnDz=4.5 },
 
-	{ id="server", name="Серверная (доход x1.5)", en="Server Room (x1.5 income)", cost=15000, income=0, needs="toprow",
+	{ id="server", name="Серверная (доход +10%)", en="Server Room (+10% income)", needs=nil,
 	  kind="room", rect={-60, 20, -31, 35}, doors={{"N", -35, 5}}, skip={W=true, S=true, E=true}, extra="servers",
 	  floor=Color3.fromRGB(40, 45, 55), btn={-35, 16} },
+	{ group="racks", name="Серверная стойка (+10%)", en="Server Rack (+10%)", kind="rack",
+	  pcs={{-57,31},{-51.5,31},{-46,31},{-40.5,31},{-35,31}}, btnDz=-5.5 },
 
 	{ id="champ",  name="Зал для чемпионатов", en="Championship Room", cost=22000, income=10, needs="server",
 	  kind="room", rect={12, -20, 60, 0}, doors={{"W", -10, 4}}, skip={S=true, E=true}, extra="champDivider",
 	  floor=Color3.fromRGB(40, 55, 110), btn={7, -10} },
-	{ id="champ1", name="Команда красных (5 ПК)", en="Red Team (5 PCs)", cost=30000, income=60, needs="champ", kind="pcs",
-	  pcs={{20,-12},{28,-12},{36,-12},{44,-12},{52,-12}}, rot=180, color=Color3.fromRGB(230, 70, 70), btn={7, -15} },
-	{ id="champ2", name="Команда синих (5 ПК)", en="Blue Team (5 PCs)", cost=40000, income=80, needs="champ1", kind="pcs",
-	  pcs={{20,-5},{28,-5},{36,-5},{44,-5},{52,-5}}, rot=0, color=Color3.fromRGB(70, 130, 255), btn={7, -4} },
+	{ group="champ1", name="Красные: ПК", en="Red Team PC", kind="pcs", minTier=2,
+	  pcs={{20,-12},{28,-12},{36,-12},{44,-12},{52,-12}}, rot=180, color=Color3.fromRGB(230, 70, 70), btnDz=-4.5 },
+	{ group="champ2", name="Синие: ПК", en="Blue Team PC", kind="pcs", minTier=2,
+	  pcs={{20,-5},{28,-5},{36,-5},{44,-5},{52,-5}}, rot=0, color=Color3.fromRGB(70, 130, 255), btnDz=3.5 },
 
 	{ id="stream", name="Стримерская", en="Streamer Room", cost=60000, income=120, needs="champ2",
 	  kind="room", rect={-60, 3, -40, 20}, doors={{"E", 12, 4}}, skip={W=true, S=true}, extra="stream",
@@ -180,6 +182,49 @@ local ITEMS = {
 	{ id="stage", name="Сцена с фото владельца", en="Stage & Owner Photo", cost=180000, income=350, needs="vip",
 	  kind="stage", btn={-5, -21} },
 }
+
+-- Группы (ряды компов, стойки) разворачиваем в покупки по одной штуке
+do
+	local expanded, counters = {}, {}
+	for _, item in ipairs(ITEMS) do
+		if item.group then
+			for k, p in ipairs(item.pcs) do
+				local base = item.name
+				counters[base] = (counters[base] or 0) + 1
+				local n = counters[base]
+				local single = table.clone(item)
+				single.id = item.group .. "_" .. k
+				single.name = base .. " №" .. n
+				single.en = item.en .. " #" .. n
+				single.pcs = { p }
+				single.btn = { p[1], p[2] + (item.btnDz or -4.5) }
+				table.insert(expanded, single)
+			end
+		else
+			table.insert(expanded, item)
+		end
+	end
+	ITEMS = expanded
+end
+
+-- Экономика: цена растёт в 1.22 раза с каждой покупкой, окупаемость
+-- покупки = 25 + 5*номер секунд. Весь этаж ≈ 24 мин без нажатий E,
+-- ≈ 12-15 мин если активно жать E и собирать монеты.
+do
+	local C0, GROWTH, PB0, PBK = 12, 1.22, 25, 5
+	for i, item in ipairs(ITEMS) do
+		item.needs = i > 1 and ITEMS[i - 1].id or nil
+		if i == 1 then
+			item.cost, item.income = 0, 1
+		else
+			item.cost = math.floor(C0 * GROWTH ^ (i - 2))
+			if item.cost > 1000 then item.cost = math.floor(item.cost / 10) * 10 end
+			item.income = math.max(1, math.floor(item.cost / (PB0 + PBK * (i - 1))))
+		end
+		-- стойки и серверная дают процент ко всему доходу, а не монеты
+		if item.kind == "rack" or item.id == "server" then item.income = 0 end
+	end
+end
 
 local ITEM_BY_ID = {}
 for _, item in ipairs(ITEMS) do
@@ -199,7 +244,15 @@ local function loadData(userId)
 	if ok and type(result) == "table" then
 		return {
 			money = tonumber(result.money) or CONFIG.START_MONEY,
-			owned = type(result.owned) == "table" and result.owned or {},
+			owned = (function(owned)
+				owned = type(owned) == "table" and owned or {}
+				for _, item in ipairs(ITEMS) do
+					local g = item.id:match("^(.-)_%d+$")
+					if g and owned[g] then owned[item.id] = true end
+					if item.kind == "rack" and owned.server then owned[item.id] = true end
+				end
+				return owned
+			end)(result.owned),
 			rebirths = tonumber(result.rebirths) or 0,
 			pcTier = tonumber(result.pcTier) or 1,
 			dailyLast = tonumber(result.dailyLast) or 0,
@@ -502,7 +555,7 @@ end
 
 -- Компьютеры: один или целый ряд
 function builders.pcs(item, origin, model, lang, plot)
-	local tier = plot and plot.pcTier or 1
+	local tier = math.max(plot and plot.pcTier or 1, item.minTier or 1)
 	local tierColor = Shared.PC_TIERS[tier].color
 	local color = item.color or tierColor
 	for _, p in ipairs(item.pcs) do
@@ -664,17 +717,28 @@ function builders.toilet(item, origin, model)
 end
 
 function builders.servers(item, origin, model, lang)
-	for i = 0, 3 do
-		local x = -56 + i * 5.5
-		local rack = box(model, origin, Vector3.new(4, 9, 4), x, 4.5, 31, Color3.fromRGB(25, 25, 30), Enum.Material.Metal)
-		for j = 0, 5 do
-			box(model, origin, Vector3.new(3, 0.25, 0.1), x, 1.5 + j * 1.2, 31 - 1.4,
-				j % 2 == 0 and Color3.fromRGB(80, 255, 120) or Color3.fromRGB(80, 170, 255), Enum.Material.Neon)
-		end
-		if i == 0 then
-			addLabel(rack, lang == "ru" and "ДОХОД x1.5" or "INCOME x1.5", Color3.fromRGB(120, 255, 160))
-		end
+	-- кабель-каналы под потолком и охлаждение
+	box(model, origin, Vector3.new(29 * S, 0.8, 1.2), -45.5, 11, 28, Color3.fromRGB(30, 30, 35), Enum.Material.Metal)
+	box(model, origin, Vector3.new(6, 3, 2), -58, 9, 34, Color3.fromRGB(200, 205, 215), Enum.Material.Metal)
+	box(model, origin, Vector3.new(4.5, 0.2, 0.1), -58, 9, 34 - 1.1 / S, Color3.fromRGB(80, 200, 255), Enum.Material.Neon)
+end
+
+-- Одна серверная стойка: корпус, мигающие огоньки, вентилятор
+function builders.rack(item, origin, model)
+	local p = item.pcs[1]
+	local x, z = p[1], p[2]
+	box(model, origin, Vector3.new(4.2, 10, 4), x, 5, z, Color3.fromRGB(22, 22, 28), Enum.Material.Metal)
+	box(model, origin, Vector3.new(3.8, 9.4, 0.1), x, 5, z - 2.05 / S, Color3.fromRGB(60, 70, 90), Enum.Material.Glass, { Transparency = 0.4 })
+	for j = 0, 7 do
+		local led = box(model, origin, Vector3.new(3, 0.22, 0.1), x, 1.2 + j * 1.1, z - 1.95 / S,
+			j % 3 == 0 and Color3.fromRGB(255, 180, 40) or (j % 2 == 0 and Color3.fromRGB(80, 255, 120) or Color3.fromRGB(80, 170, 255)), Enum.Material.Neon)
+		led:SetAttribute("Blink", true)
 	end
+	local glow = box(model, origin, Vector3.new(4.2, 0.2, 4), x, 0.1, z, Color3.fromRGB(80, 170, 255), Enum.Material.Neon, { CanCollide = false })
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(80, 170, 255)
+	light.Range = 10
+	light.Parent = glow
 end
 
 function builders.stream(item, origin, model)
@@ -1106,7 +1170,11 @@ local function recalcIncome(plot)
 			total += item.kind == "pcs" and item.income * tierMult or item.income
 		end
 	end
-	local boost = plot.owned.server and CONFIG.SERVER_BOOST or 1
+	local boost = 1 + (plot.owned.server and 0.1 or 0)
+	for id in pairs(plot.owned) do
+		local it = ITEM_BY_ID[id]
+		if it and it.kind == "rack" then boost += 0.1 end
+	end
 	local rebirthBoost = 1 + (plot.rebirths or 0)   -- ребёрт: x2, x3, x4...
 	plot.income = math.floor(total * boost * plot.multiplier * rebirthBoost)
 

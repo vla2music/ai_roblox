@@ -364,4 +364,52 @@ task.spawn(function()
 	end
 end)
 
+--=========================================================================
+-- ПАСХАЛКА: золотой сундук прячется между небоскрёбами.
+-- Нашёл — получаешь половину цены следующей покупки. Потом сундук
+-- перепрятывается, у каждого игрока перерыв 10 минут.
+--=========================================================================
+
+local SPOTS = {}
+for x = 355, 885, 58 do
+	for _, z in ipairs({ 235, 295 }) do table.insert(SPOTS, Vector3.new(x, GROUND + 2.5, z)) end
+end
+local chest = part({ Name = "ЗолотойСундук", Size = Vector3.new(4, 3, 3), Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Metal, Reflectance = 0.3, CanCollide = false })
+part({ Parent = chest, Size = Vector3.new(4.2, 0.5, 3.2), Color = Color3.fromRGB(120, 70, 30), Material = Enum.Material.Wood, CanCollide = false })
+local sparkle = Instance.new("Sparkles")
+sparkle.SparkleColor = Color3.fromRGB(255, 220, 80)
+sparkle.Parent = chest
+local glow = Instance.new("PointLight")
+glow.Color = Color3.fromRGB(255, 210, 80)
+glow.Range = 14
+glow.Parent = chest
+
+local function hideChest()
+	local p = SPOTS[rng:NextInteger(1, #SPOTS)]
+	chest.CFrame = CFrame.new(p) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0)
+	chest.Transparency = 0
+	chest:GetChildren()[1].CFrame = chest.CFrame * CFrame.new(0, 1.7, 0)
+end
+hideChest()
+
+local lastFound = {}
+local busy = false
+chest.Touched:Connect(function(hit)
+	if busy then return end
+	local player = Players:GetPlayerFromCharacter(hit.Parent)
+	if not player or not player:FindFirstChild("leaderstats") then return end
+	if lastFound[player] and os.clock() - lastFound[player] < 600 then return end
+	busy = true
+	lastFound[player] = os.clock()
+	local amount = math.max(500, math.floor((player:GetAttribute("NextCost") or 0) * 0.5))
+	player.leaderstats.Coins.Value += amount
+	player:SetAttribute("ChestBonus", nil)
+	player:SetAttribute("ChestBonus", amount)   -- экран покажет «+N»
+	chest.Transparency = 1
+	task.wait(3)
+	hideChest()
+	busy = false
+end)
+Players.PlayerRemoving:Connect(function(p) lastFound[p] = nil end)
+
 print("[Город] Дорожка, город, колесо, горки и рекорды готовы")

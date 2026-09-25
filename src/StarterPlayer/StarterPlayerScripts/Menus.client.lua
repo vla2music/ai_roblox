@@ -436,3 +436,16 @@ money:GetPropertyChangedSignal("Value"):Connect(refreshGoal)
 player:GetAttributeChangedSignal("NextName"):Connect(refreshGoal)
 player:GetAttributeChangedSignal("NextCost"):Connect(refreshGoal)
 refreshGoal()
+
+-- Пасхалка: нашёл золотой сундук в городе
+player:GetAttributeChangedSignal("ChestBonus"):Connect(function()
+	local v = player:GetAttribute("ChestBonus")
+	if not v then return end
+	local msg = text(screen, {
+		Size = UDim2.new(0, 520, 0, 60), Position = UDim2.new(0.5, 0, 0.3, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+		Text = L("💰 СУНДУК! +", "💰 TREASURE! +") .. short(v), TextColor3 = Color3.fromRGB(255, 215, 80),
+	})
+	local st = Instance.new("UIStroke") st.Thickness = 3 st.Parent = msg
+	task.delay(2.5, function() msg:Destroy() end)
+	player:SetAttribute("ChestBonus", nil)
+end)

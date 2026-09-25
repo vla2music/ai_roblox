@@ -31,9 +31,9 @@ Shared.COIN_PACKS = {
 -- Уровни компьютеров: каждый умножает доход всех ПК и меняет их вид
 Shared.PC_TIERS = {
 	{ ru = "Обычные",       en = "Basic",     mult = 1, cost = 0,       color = Color3.fromRGB(200, 60, 80) },
-	{ ru = "RGB-геймерские", en = "RGB Gamer", mult = 2, cost = 8000,    color = Color3.fromRGB(80, 255, 140) },
-	{ ru = "Про-станции",   en = "Pro",       mult = 3, cost = 90000,   color = Color3.fromRGB(255, 200, 60) },
-	{ ru = "Легендарные",   en = "Legendary", mult = 5, cost = 1200000, color = Color3.fromRGB(90, 220, 255) },
+	{ ru = "RGB-геймерские", en = "RGB Gamer", mult = 2, cost = 5000,    color = Color3.fromRGB(80, 255, 140) },
+	{ ru = "Про-станции",   en = "Pro",       mult = 3, cost = 60000,   color = Color3.fromRGB(255, 200, 60) },
+	{ ru = "Легендарные",   en = "Legendary", mult = 5, cost = 400000,  color = Color3.fromRGB(90, 220, 255) },
 }
 
 -- Ежедневные награды: доход клуба за N минут (минимум 100 монет)

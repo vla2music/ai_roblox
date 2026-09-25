@@ -68,6 +68,16 @@ local balloons = {
 	{ pieces = makeBalloon(Color3.fromRGB(255, 80, 150)), base = Vector3.new(250, 110, 180), phase = 0 },
 	{ pieces = makeBalloon(Color3.fromRGB(80, 200, 255)), base = Vector3.new(700, 140, 160), phase = 2 },
 	{ pieces = makeBalloon(Color3.fromRGB(255, 200, 60)), base = Vector3.new(1100, 120, 190), phase = 4 },
+	{ pieces = makeBalloon(Color3.fromRGB(150, 255, 120)), base = Vector3.new(-150, 90, -150), phase = 5 },
+	{ pieces = makeBalloon(Color3.fromRGB(255, 120, 60)), base = Vector3.new(100, 160, -300), phase = 6 },
+	{ pieces = makeBalloon(Color3.fromRGB(180, 110, 255)), base = Vector3.new(400, 75, -220), phase = 7 },
+	{ pieces = makeBalloon(Color3.fromRGB(255, 90, 200)), base = Vector3.new(900, 180, -280), phase = 8 },
+	{ pieces = makeBalloon(Color3.fromRGB(90, 255, 220)), base = Vector3.new(1300, 100, -120), phase = 9 },
+	{ pieces = makeBalloon(Color3.fromRGB(255, 230, 120)), base = Vector3.new(1450, 140, 150), phase = 10 },
+	{ pieces = makeBalloon(Color3.fromRGB(120, 160, 255)), base = Vector3.new(-250, 120, 200), phase = 11 },
+	{ pieces = makeBalloon(Color3.fromRGB(255, 150, 200)), base = Vector3.new(500, 210, 320), phase = 12 },
+	{ pieces = makeBalloon(Color3.fromRGB(255, 255, 255)), base = Vector3.new(850, 90, 60), phase = 13 },
+	{ pieces = makeBalloon(Color3.fromRGB(90, 200, 255)), base = Vector3.new(1250, 200, 320), phase = 14 },
 }
 
 local function place(pieces, cf)
