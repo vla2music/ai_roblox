@@ -90,8 +90,21 @@ local CONFIG = {
 
 	SERVER_BOOST   = 1.5,    -- серверная умножает весь доход
 
-	-- ID геймпасса «x2 монеты». Пока 0 — геймпасс выключен.
-	DOUBLE_CASH_GAMEPASS = 0,
+	-- Геймпассы (табло у входа). id = 0 — ещё не создан, карточка пишет «скоро».
+	-- Создать: create.roblox.com -> игра -> Monetization -> Passes -> Create,
+	-- потом вписать сюда ID. price — только для надписи на табло, реальную
+	-- цену ставишь на сайте Roblox.
+	GAMEPASSES = {
+		{ key = "autocollect", id = 0, price = 99,  icon = "🎒",
+		  ru = { "Авто-сбор", "Монеты сами летят\nв карман" },
+		  en = { "Auto Collect", "Coins go straight\nto your wallet" } },
+		{ key = "doublecash",  id = 0, price = 249, icon = "💰",
+		  ru = { "x2 денег", "Весь доход\nнавсегда x2!" },
+		  en = { "x2 Cash", "Double income\nforever!" } },
+		{ key = "speed",       id = 0, price = 49,  icon = "⚡",
+		  ru = { "Быстрый бег", "Бегаешь в 1.7 раза\nбыстрее" },
+		  en = { "Speed Boost", "Run 1.7x\nfaster" } },
+	},
 }
 
 local S = CONFIG.SCALE
@@ -868,6 +881,62 @@ local function createPlot(index)
 	coinFolder.Name = "Монеты"
 	coinFolder.Parent = model
 
+	-- табло геймпасов у входа (как у популярных тайкунов)
+	local passCards = {}
+	local header = box(model, origin, Vector3.new(30, 3.4, 0.6), 18, 13.2, 45, Color3.fromRGB(25, 20, 40))
+	addSign(header, Enum.NormalId.Front, "⭐ GAMEPASSES ⭐", Color3.fromRGB(255, 215, 90))
+	box(model, origin, Vector3.new(31, 12, 0.4), 18, 6.5, 45.3, Color3.fromRGB(110, 75, 45), Enum.Material.Wood)
+	for _, x in ipairs({ 7.5, 28.5 }) do
+		box(model, origin, Vector3.new(1, 15, 1), x, 7.5, 45.4, Color3.fromRGB(90, 60, 35), Enum.Material.Wood)
+	end
+	for i, pass in ipairs(CONFIG.GAMEPASSES) do
+		local panel = box(model, origin, Vector3.new(8.4, 10.4, 0.4), 12 + (i - 1) * 6, 6.5, 45, Color3.fromRGB(30, 28, 45))
+		panel.Name = "Геймпасс_" .. pass.key
+
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.Parent = panel
+
+		local function label(y, h, text, size, color, font)
+			local l = Instance.new("TextLabel")
+			l.Size = UDim2.new(1, -20, 0, h)
+			l.Position = UDim2.new(0, 10, 0, y)
+			l.BackgroundTransparency = 1
+			l.Font = font or Enum.Font.GothamBlack
+			l.TextScaled = true
+			l.TextColor3 = color
+			l.Text = text
+			l.Parent = gui
+			return l
+		end
+		local title = label(12, 50, "", 0, Color3.fromRGB(255, 215, 90))
+		label(66, 130, pass.icon, 0, Color3.new(1, 1, 1))
+		local desc = label(200, 80, "", 0, Color3.fromRGB(230, 230, 240), Enum.Font.GothamMedium)
+		local price = Instance.new("TextLabel")
+		price.Size = UDim2.new(1, -60, 0, 62)
+		price.Position = UDim2.new(0, 30, 1, -84)
+		price.Font = Enum.Font.GothamBlack
+		price.TextScaled = true
+		price.TextColor3 = Color3.new(1, 1, 1)
+		price.Parent = gui
+		Instance.new("UICorner", price).CornerRadius = UDim.new(0, 14)
+
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.KeyboardKeyCode = Enum.KeyCode.E
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 12
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = panel
+		prompt.Triggered:Connect(function(player)
+			if pass.id == 0 or hasPass(player, pass.key) then return end
+			MarketplaceService:PromptGamePassPurchase(player, pass.id)
+		end)
+
+		passCards[pass.key] = { title = title, desc = desc, price = price, prompt = prompt }
+	end
+
 	-- стрелка над следующей покупкой
 	local arrow = makePart({
 		Name = "Стрелка",
@@ -893,6 +962,7 @@ local function createPlot(index)
 		coinPad    = coinPad,
 		coinFolder = coinFolder,
 		arrow      = arrow,
+		passCards  = passCards,
 		crowd      = crowd,
 		lastClick  = 0,
 		lang       = "en",
@@ -1120,6 +1190,12 @@ end
 local function dropCoin(plot, value)
 	value = math.max(1, math.floor(value))
 
+	-- геймпасс «Авто-сбор»: монеты сразу в кошелёк, бегать не надо
+	if plot.owner and plot.owner:GetAttribute("Pass_autocollect") == true then
+		plot.owner.leaderstats[CONFIG.CURRENCY_NAME].Value += value
+		return
+	end
+
 	-- площадка переполнена: добавляем стоимость к случайной монете
 	local existing = plot.coinFolder:GetChildren()
 	if #existing >= CONFIG.MAX_COINS then
@@ -1202,13 +1278,69 @@ local function findFreePlot()
 	return nil
 end
 
-local function hasDoubleCash(player)
-	if CONFIG.DOUBLE_CASH_GAMEPASS == 0 then return false end
-	local ok, owns = pcall(function()
-		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, CONFIG.DOUBLE_CASH_GAMEPASS)
-	end)
-	return ok and owns
+-- Есть ли у игрока геймпасс (ответ запоминаем в атрибуте Pass_<key>)
+local function checkPasses(player)
+	for _, pass in ipairs(CONFIG.GAMEPASSES) do
+		local owns = false
+		if pass.id ~= 0 then
+			local ok, res = pcall(function()
+				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.id)
+			end)
+			owns = ok and res
+		end
+		player:SetAttribute("Pass_" .. pass.key, owns)
+	end
 end
+
+local function hasPass(player, key)
+	return player and player:GetAttribute("Pass_" .. key) == true
+end
+
+local function applySpeed(player)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.WalkSpeed = hasPass(player, "speed") and 28 or 16
+	end
+end
+
+-- Надписи на табло: язык владельца участка, «куплено» или цена
+local function refreshPassBoard(plot)
+	local lang = plot.lang
+	for _, pass in ipairs(CONFIG.GAMEPASSES) do
+		local card = plot.passCards[pass.key]
+		local texts = pass[lang] or pass.en
+		card.title.Text = texts[1]
+		card.desc.Text = texts[2]
+		if hasPass(plot.owner, pass.key) then
+			card.price.Text = lang == "ru" and "✓ КУПЛЕНО" or "✓ OWNED"
+			card.price.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+		elseif pass.id == 0 then
+			card.price.Text = lang == "ru" and "СКОРО" or "SOON"
+			card.price.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+		else
+			card.price.Text = "R$ " .. pass.price
+			card.price.BackgroundColor3 = Color3.fromRGB(40, 190, 90)
+		end
+		card.prompt.ActionText = lang == "ru" and "Купить" or "Buy"
+		card.prompt.ObjectText = texts[1]
+	end
+end
+
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+	if not purchased then return end
+	for _, pass in ipairs(CONFIG.GAMEPASSES) do
+		if pass.id == passId then
+			player:SetAttribute("Pass_" .. pass.key, true)
+		end
+	end
+	local plot = plotByPlayer[player]
+	if plot then
+		plot.multiplier = hasPass(player, "doublecash") and 2 or 1
+		recalcIncome(plot)
+		refreshPassBoard(plot)
+	end
+	applySpeed(player)
+end)
 
 local function onPlayerAdded(player)
 	-- статистика в таблице игроков
@@ -1250,7 +1382,8 @@ local function onPlayerAdded(player)
 
 	plot.owner = player
 	plot.owned = {}
-	plot.multiplier = hasDoubleCash(player) and 2 or 1
+	checkPasses(player)
+	plot.multiplier = hasPass(player, "doublecash") and 2 or 1
 	plot.rebirths = data.rebirths
 	plotByPlayer[player] = plot
 	plot.lang = langOf(player)
@@ -1259,6 +1392,7 @@ local function onPlayerAdded(player)
 	plot.prompt.ActionText = T(plot.lang, "action")
 	plot.prompt.ObjectText = T(plot.lang, "object")
 	plot.nameLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
+	refreshPassBoard(plot)
 
 	-- восстанавливаем всё, что было куплено раньше
 	for _, item in ipairs(ITEMS) do
@@ -1278,6 +1412,7 @@ local function onPlayerAdded(player)
 			task.wait(0.1)
 			root.CFrame = plot.spawnPad.CFrame * CFrame.new(0, 4, 0) * CFrame.Angles(0, math.rad(0), 0)
 		end
+		applySpeed(player)
 	end
 	-- Только в Studio: сброс прогресса для тестов.
 	-- В командной строке Studio: game.Players.ИМЯ:SetAttribute("DevReset", true)
@@ -1395,7 +1530,9 @@ end
 setupAtmosphere()
 
 for index = 1, CONFIG.MAX_PLOTS do
-	connectPlotTouches(createPlot(index))
+	local plot = createPlot(index)
+	connectPlotTouches(plot)
+	refreshPassBoard(plot)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
