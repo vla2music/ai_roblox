@@ -334,14 +334,14 @@ local function sideButton(icon, label, color, onClick)
 	return b
 end
 
-sideButton("🛒", L("Магазин", "Shop"), Color3.fromRGB(230, 70, 70), function() show(shopWin, refreshShop) end)
+local shopBtn = sideButton("🛒", L("Магазин", "Shop"), Color3.fromRGB(230, 70, 70), function() show(shopWin, refreshShop) end)
 sideButton("💻", L("Компы", "PCs"), Color3.fromRGB(50, 130, 230), function()
 	show(upWin, function()
 		local st = clubAction:InvokeServer("state")
 		if st then tierButtons.refresh(st) end
 	end)
 end)
-sideButton("📅", L("Награды", "Daily"), Color3.fromRGB(200, 70, 170), function() show(dayWin, refreshDaily) end)
+local dailyBtn = sideButton("📅", L("Награды", "Daily"), Color3.fromRGB(200, 70, 170), function() show(dayWin, refreshDaily) end)
 sideButton("👥", L("Друзья", "Invite"), Color3.fromRGB(40, 170, 90), function()
 	pcall(function()
 		if SocialService:CanSendGameInviteAsync(player) then
@@ -349,3 +349,90 @@ sideButton("👥", L("Друзья", "Invite"), Color3.fromRGB(40, 170, 90), fun
 		end
 	end)
 end)
+
+--=========================================================================
+-- «Живой» экран: покачивание кнопок, значок «!», всплывающие +монеты,
+-- полоска до следующей покупки
+--=========================================================================
+
+-- кнопки магазина и наград слегка покачиваются, чтобы на них смотрели
+for i, b in ipairs({ shopBtn, dailyBtn }) do
+	task.spawn(function()
+		task.wait(i * 0.6)
+		while b.Parent do
+			TweenService:Create(b, TweenInfo.new(0.12), { Rotation = 6 }):Play() task.wait(0.12)
+			TweenService:Create(b, TweenInfo.new(0.12), { Rotation = -6 }):Play() task.wait(0.12)
+			TweenService:Create(b, TweenInfo.new(0.12), { Rotation = 0 }):Play()
+			task.wait(3)
+		end
+	end)
+end
+
+-- красный значок «!», когда ежедневная награда готова
+local badge = text(dailyBtn, {
+	Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -18, 0, -12),
+	BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(230, 40, 40), Text = "!", Visible = false,
+})
+corner(badge, 15)
+task.spawn(function()
+	while true do
+		local ok, st = pcall(function() return clubAction:InvokeServer("state") end)
+		badge.Visible = ok and st ~= nil and st.dailyReadyIn <= 0
+		task.wait(30)
+	end
+end)
+
+-- всплывающие «+монеты» при каждом пополнении
+local last = money.Value
+money:GetPropertyChangedSignal("Value"):Connect(function()
+	local diff = money.Value - last
+	last = money.Value
+	if diff <= 0 then return end
+	local pop = text(screen, {
+		Size = UDim2.new(0, 220, 0, 40),
+		Position = UDim2.new(0.5, math.random(-60, 60), 0, 118),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Text = "+" .. short(diff), TextColor3 = Color3.fromRGB(110, 255, 140),
+	})
+	local s = Instance.new("UIStroke")
+	s.Thickness = 2
+	s.Parent = pop
+	TweenService:Create(pop, TweenInfo.new(0.9, Enum.EasingStyle.Quad), {
+		Position = pop.Position - UDim2.new(0, 0, 0, 60), TextTransparency = 1,
+	}):Play()
+	TweenService:Create(s, TweenInfo.new(0.9), { Transparency = 1 }):Play()
+	task.delay(1, function() pop:Destroy() end)
+end)
+
+-- полоска «до следующей покупки» внизу экрана
+local goal = Instance.new("Frame")
+goal.Size = UDim2.new(0, 420, 0, 46)
+goal.Position = UDim2.new(0.5, -210, 1, -70)
+goal.BackgroundColor3 = Color3.fromRGB(24, 22, 32)
+goal.BackgroundTransparency = 0.15
+goal.Parent = screen
+corner(goal, 12)
+stroke(goal, Color3.fromRGB(255, 200, 60), 2)
+local fill = Instance.new("Frame")
+fill.Size = UDim2.new(0, 0, 1, 0)
+fill.BackgroundColor3 = Color3.fromRGB(60, 200, 90)
+fill.Parent = goal
+corner(fill, 12)
+local goalText = text(goal, { Size = UDim2.new(1, -20, 0.8, 0), Position = UDim2.new(0, 10, 0.1, 0), Text = "", ZIndex = 2 })
+
+local function refreshGoal()
+	local name, cost = player:GetAttribute("NextName") or "", player:GetAttribute("NextCost") or 0
+	goal.Visible = name ~= ""
+	if name == "" then return end
+	local k = cost > 0 and math.clamp(money.Value / cost, 0, 1) or 1
+	TweenService:Create(fill, TweenInfo.new(0.25), { Size = UDim2.new(k, 0, 1, 0) }):Play()
+	if k >= 1 then
+		goalText.Text = L("✅ Можно купить: ", "✅ Ready: ") .. name .. L(" — иди к стрелке!", " — follow the arrow!")
+	else
+		goalText.Text = "🎯 " .. name .. ": " .. short(money.Value) .. " / " .. short(cost)
+	end
+end
+money:GetPropertyChangedSignal("Value"):Connect(refreshGoal)
+player:GetAttributeChangedSignal("NextName"):Connect(refreshGoal)
+player:GetAttributeChangedSignal("NextCost"):Connect(refreshGoal)
+refreshGoal()

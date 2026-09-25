@@ -1049,6 +1049,16 @@ local function refreshButtons(plot)
 		end
 	end
 
+	-- следующая цель — для полоски прогресса на экране
+	if plot.owner then
+		local nextItem
+		for _, item in ipairs(ITEMS) do
+			if isAvailable(plot, item) then nextItem = item break end
+		end
+		plot.owner:SetAttribute("NextName", nextItem and itemName(nextItem, plot.lang) or "")
+		plot.owner:SetAttribute("NextCost", nextItem and nextItem.cost or 0)
+	end
+
 	if next_ then
 		plot.arrow.CFrame = next_.CFrame * CFrame.new(0, 7, 0) * CFrame.Angles(math.rad(180), 0, 0)
 		plot.arrow.Transparency = 0
