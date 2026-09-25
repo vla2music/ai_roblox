@@ -9,7 +9,10 @@
 local Players = game:GetService("Players")
 
 local player  = Players.LocalPlayer
-local CURRENCY = "Монеты"
+local CURRENCY = "Coins"
+
+-- русскоязычные видят русский, все остальные — английский
+local isRu = player.LocaleId:sub(1, 2) == "ru"
 
 local leaderstats = player:WaitForChild("leaderstats")
 local money       = leaderstats:WaitForChild(CURRENCY)
@@ -30,9 +33,9 @@ end
 
 local function short(n)
 	n = math.floor(n)
-	if n >= 1e9 then return string.format("%.1fМрд", n / 1e9) end
-	if n >= 1e6 then return string.format("%.1fМлн", n / 1e6) end
-	if n >= 1e3 then return string.format("%.1fК",   n / 1e3) end
+	if n >= 1e9 then return string.format("%.1fB", n / 1e9) end
+	if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
+	if n >= 1e3 then return string.format("%.1fK", n / 1e3) end
 	return tostring(n)
 end
 
@@ -96,9 +99,15 @@ local storageLabel = makeRow(3, 15, Color3.fromRGB(200, 200, 215))
 --=========================================================================
 
 local function refresh()
-	moneyLabel.Text   = short(money.Value) .. " " .. coins(money.Value)
-	incomeLabel.Text  = "+" .. short(income.Value) .. " в секунду"
-	storageLabel.Text = "На площадке: " .. short(storage.Value) .. "  (беги собирай!)"
+	if isRu then
+		moneyLabel.Text   = short(money.Value) .. " " .. coins(money.Value)
+		incomeLabel.Text  = "+" .. short(income.Value) .. " в секунду"
+		storageLabel.Text = "На площадке: " .. short(storage.Value) .. "  (беги собирай!)"
+	else
+		moneyLabel.Text   = short(money.Value) .. (money.Value == 1 and " coin" or " coins")
+		incomeLabel.Text  = "+" .. short(income.Value) .. " per second"
+		storageLabel.Text = "On the pad: " .. short(storage.Value) .. "  (go grab them!)"
+	end
 end
 
 money:GetPropertyChangedSignal("Value"):Connect(refresh)
@@ -118,7 +127,9 @@ hint.Font = Enum.Font.GothamMedium
 hint.TextSize = 17
 hint.TextColor3 = Color3.fromRGB(255, 255, 255)
 hint.TextStrokeTransparency = 0.5
-hint.Text = "Жми E у жёлтого аппарата и собирай монеты! Красные кнопки — покупки."
+hint.Text = isRu
+	and "Жми E у жёлтого аппарата и собирай монеты! Красные кнопки — покупки."
+	or "Press E at the yellow machine and grab the coins! Step on red buttons to buy."
 hint.Parent = screen
 
 task.delay(14, function()

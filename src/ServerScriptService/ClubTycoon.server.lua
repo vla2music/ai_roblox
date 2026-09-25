@@ -25,7 +25,7 @@ local templates = ServerStorage:FindFirstChild("Шаблоны")
 --=========================================================================
 
 local CONFIG = {
-	CURRENCY_NAME  = "Монеты",
+	CURRENCY_NAME  = "Coins",   -- колонка в таблице игроков (одна для всех языков)
 	MAX_PLOTS      = 6,      -- сколько игроков может строить одновременно
 	PLOT_SIZE      = 90,     -- размер участка в студах
 	PLOT_GAP       = 40,     -- расстояние между участками
@@ -80,20 +80,20 @@ local CONFIG = {
 --=========================================================================
 
 local ITEMS = {
-	{ id="reception", name="Ресепшн",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  6, 0,  22), kind="box",   model="reception", rot=180,  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
-	{ id="pc1",       name="Игровой ПК №1",        cost=25,    income=2,   needs="reception", pos=Vector3.new(-34, 0, -30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc2",       name="Игровой ПК №2",        cost=120,   income=3,   needs="pc1",       pos=Vector3.new(-34, 0, -15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc3",       name="Игровой ПК №3",        cost=300,   income=5,   needs="pc2",       pos=Vector3.new(-34, 0,   0), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="vending",   name="Автомат с едой",       cost=650,   income=9,   needs="pc3",       pos=Vector3.new( 34, 0,  30), kind="box",   model="vending", rot=-90,  size=Vector3.new(5,9,4),   color=Color3.fromRGB(230,150, 30) },
-	{ id="chairs",    name="Геймерские кресла",    cost=1200,  income=14,  needs="vending",   pos=Vector3.new(-14, 0,  16), kind="zone",  chairs=4, size=Vector3.new(16,1,16),  color=Color3.fromRGB(120, 60,190) },
-	{ id="pc4",       name="Игровой ПК №4",        cost=2000,  income=20,  needs="chairs",    pos=Vector3.new(-34, 0,  15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc5",       name="Игровой ПК №5",        cost=3200,  income=26,  needs="pc4",       pos=Vector3.new(-34, 0,  30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="ac",        name="Кондиционер",          cost=5000,  income=35,  needs="pc5",       pos=Vector3.new(  0, 0, -42), kind="box",   model="ac", backing=true,  size=Vector3.new(12,5,4),  color=Color3.fromRGB(220,220,230) },
-	{ id="stream",    name="Стримерская комната",  cost=8000,  income=55,  needs="ac",        pos=Vector3.new( 30, 0, -28), kind="desk",  model="pc", rot=-90, color=Color3.fromRGB( 40,180,140) },
-	{ id="vip",       name="VIP-зона",             cost=13000, income=85,  needs="stream",    pos=Vector3.new( 28, 0,  -4), kind="zone",  chairs=3, size=Vector3.new(18,1,18),  color=Color3.fromRGB(240,200, 60) },
-	{ id="tourney",   name="Турнирная сцена",      cost=22000, income=140, needs="vip",       pos=Vector3.new(  4, 0, -20), kind="zone", size=Vector3.new(22,2,14),  color=Color3.fromRGB( 90,110,255) },
-	{ id="walls",     name="Стены и крыша",        cost=35000, income=60,  needs="tourney",   pos=Vector3.new(  0, 0,   0), kind="walls", btn=Vector3.new(-8, 0, 30) },
-	{ id="neon",      name="Неоновая вывеска",     cost=50000, income=250, needs="walls",     pos=Vector3.new(  0,26,  42), kind="sign", btn=Vector3.new( 8, 0, 30) },
+	{ id="reception", name="Ресепшн", en="Reception",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  6, 0,  22), kind="box",   model="reception", rot=180,  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
+	{ id="pc1",       name="Игровой ПК №1", en="Gaming PC #1",        cost=25,    income=2,   needs="reception", pos=Vector3.new(-34, 0, -30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="pc2",       name="Игровой ПК №2", en="Gaming PC #2",        cost=120,   income=3,   needs="pc1",       pos=Vector3.new(-34, 0, -15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="pc3",       name="Игровой ПК №3", en="Gaming PC #3",        cost=300,   income=5,   needs="pc2",       pos=Vector3.new(-34, 0,   0), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="vending",   name="Автомат с едой", en="Snack Machine",       cost=650,   income=9,   needs="pc3",       pos=Vector3.new( 34, 0,  30), kind="box",   model="vending", rot=-90,  size=Vector3.new(5,9,4),   color=Color3.fromRGB(230,150, 30) },
+	{ id="chairs",    name="Геймерские кресла", en="Gaming Chairs",    cost=1200,  income=14,  needs="vending",   pos=Vector3.new(-14, 0,  16), kind="zone",  chairs=4, size=Vector3.new(16,1,16),  color=Color3.fromRGB(120, 60,190) },
+	{ id="pc4",       name="Игровой ПК №4", en="Gaming PC #4",        cost=2000,  income=20,  needs="chairs",    pos=Vector3.new(-34, 0,  15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="pc5",       name="Игровой ПК №5", en="Gaming PC #5",        cost=3200,  income=26,  needs="pc4",       pos=Vector3.new(-34, 0,  30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="ac",        name="Кондиционер", en="Air Conditioner",          cost=5000,  income=35,  needs="pc5",       pos=Vector3.new(  0, 0, -42), kind="box",   model="ac", backing=true,  size=Vector3.new(12,5,4),  color=Color3.fromRGB(220,220,230) },
+	{ id="stream",    name="Стримерская комната", en="Streamer Room",  cost=8000,  income=55,  needs="ac",        pos=Vector3.new( 30, 0, -28), kind="desk",  model="pc", rot=-90, color=Color3.fromRGB( 40,180,140) },
+	{ id="vip",       name="VIP-зона", en="VIP Zone",             cost=13000, income=85,  needs="stream",    pos=Vector3.new( 28, 0,  -4), kind="zone",  chairs=3, size=Vector3.new(18,1,18),  color=Color3.fromRGB(240,200, 60) },
+	{ id="tourney",   name="Турнирная сцена", en="Tournament Stage",      cost=22000, income=140, needs="vip",       pos=Vector3.new(  4, 0, -20), kind="zone", size=Vector3.new(22,2,14),  color=Color3.fromRGB( 90,110,255) },
+	{ id="walls",     name="Стены и крыша", en="Walls & Roof",        cost=35000, income=60,  needs="tourney",   pos=Vector3.new(  0, 0,   0), kind="walls", btn=Vector3.new(-8, 0, 30) },
+	{ id="neon",      name="Неоновая вывеска", en="Neon Sign",     cost=50000, income=250, needs="walls",     pos=Vector3.new(  0,26,  42), kind="sign", btn=Vector3.new( 8, 0, 30) },
 }
 
 local ITEM_BY_ID = {}
@@ -147,12 +147,12 @@ local function makePart(props)
 	return part
 end
 
--- Красиво пишет большие числа: 15400 -> "15.4К"
+-- Красиво пишет большие числа: 15400 -> "15.4K"
 local function short(n)
 	n = math.floor(n)
-	if n >= 1e9 then return string.format("%.1fМрд", n / 1e9) end
-	if n >= 1e6 then return string.format("%.1fМлн", n / 1e6) end
-	if n >= 1e3 then return string.format("%.1fК",   n / 1e3) end
+	if n >= 1e9 then return string.format("%.1fB", n / 1e9) end
+	if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
+	if n >= 1e3 then return string.format("%.1fK", n / 1e3) end
 	return tostring(n)
 end
 
@@ -165,6 +165,54 @@ local function coins(n)
 	if lastOne == 1 then return "монета" end
 	if lastOne >= 2 and lastOne <= 4 then return "монеты" end
 	return "монет"
+end
+
+--=========================================================================
+-- ЯЗЫК: русскоязычные видят русский, все остальные — английский
+--=========================================================================
+
+local TEXT = {
+	ru = {
+		free      = "БЕСПЛАТНО",
+		freePlot  = "СВОБОДНЫЙ УЧАСТОК",
+		club      = "КЛУБ · %s",
+		machine   = "МОНЕТНЫЙ АППАРАТ\nжми E!",
+		machineOn = "МОНЕТНЫЙ АППАРАТ\n+%s/сек · жми E!",
+		action    = "Добыть монеты",
+		object    = "Аппарат",
+	},
+	en = {
+		free      = "FREE",
+		freePlot  = "FREE PLOT",
+		club      = "%s'S CLUB",
+		machine   = "COIN MACHINE\npress E!",
+		machineOn = "COIN MACHINE\n+%s/sec · press E!",
+		action    = "Mine coins",
+		object    = "Machine",
+	},
+}
+
+local function langOf(player)
+	local locale = player and player.LocaleId or ""
+	if locale:sub(1, 2) == "ru" then return "ru" end
+	return "en"
+end
+
+local function T(lang, key, ...)
+	local text = (TEXT[lang] or TEXT.en)[key]
+	if select("#", ...) > 0 then return string.format(text, ...) end
+	return text
+end
+
+local function itemName(item, lang)
+	if lang == "ru" then return item.name end
+	return item.en or item.name
+end
+
+local function priceText(item, lang)
+	if item.cost == 0 then return T(lang, "free") end
+	if lang == "ru" then return short(item.cost) .. " " .. coins(item.cost) end
+	return short(item.cost) .. (item.cost == 1 and " coin" or " coins")
 end
 
 -- Проигрывает звук один раз и убирает его за собой
@@ -272,10 +320,10 @@ function builders.desk(item, origin)
 end
 
 -- Красивая модель из магазина. Если шаблона нет — строим по-старому.
-function builders.model(item, origin)
+function builders.model(item, origin, lang)
 	local template = templates and templates:FindFirstChild(item.model)
 	if not template then
-		return builders[item.kind](item, origin)
+		return builders[item.kind](item, origin, lang)
 	end
 
 	local model = template:Clone()
@@ -336,7 +384,7 @@ function builders.box(item, origin)
 end
 
 -- Зона на полу: ковёр с подсветкой и подписью
-function builders.zone(item, origin)
+function builders.zone(item, origin, lang)
 	local model = Instance.new("Model")
 	model.Name = item.id
 
@@ -366,7 +414,7 @@ function builders.zone(item, origin)
 		})
 	end
 
-	addLabel(pad, item.name, item.color)
+	addLabel(pad, itemName(item, lang), item.color)
 
 	local light = Instance.new("PointLight")
 	light.Color = item.color
@@ -598,7 +646,7 @@ local function createPlot(index)
 		Color = Color3.fromRGB(30, 30, 40),
 		Parent = model,
 	})
-	local nameLabel = addLabel(pole, "СВОБОДНЫЙ УЧАСТОК", Color3.fromRGB(150, 255, 150))
+	local nameLabel = addLabel(pole, T("en", "freePlot"), Color3.fromRGB(150, 255, 150))
 
 	-- монетный аппарат: выбрасывает монеты на площадку перед собой
 	local machine = makePart({
@@ -622,11 +670,11 @@ local function createPlot(index)
 	machineLight.Brightness = 2
 	machineLight.Parent = machine
 
-	local safeLabel = addLabel(machine, "МОНЕТНЫЙ АППАРАТ\nжми E!", Color3.fromRGB(255, 240, 150))
+	local safeLabel = addLabel(machine, T("en", "machine"), Color3.fromRGB(255, 240, 150))
 
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Добыть монеты"
-	prompt.ObjectText = "Аппарат"
+	prompt.ActionText = T("en", "action")
+	prompt.ObjectText = T("en", "object")
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 12
@@ -658,6 +706,7 @@ local function createPlot(index)
 		coinPad    = coinPad,
 		coinFolder = coinFolder,
 		lastClick  = 0,
+		lang       = "en",
 		safeLabel  = safeLabel,
 		nameLabel  = nameLabel,
 		owner      = nil,
@@ -681,10 +730,7 @@ local function createPlot(index)
 			Parent = model,
 		})
 		button:SetAttribute("ItemId", item.id)
-		local priceText = item.cost == 0
-			and "БЕСПЛАТНО"
-			or (short(item.cost) .. " " .. coins(item.cost))
-		addLabel(button, item.name .. "\n" .. priceText)
+		addLabel(button, itemName(item, "en") .. "\n" .. priceText(item, "en"))
 		button.Transparency = 1
 		button.CanCollide = false
 		for _, child in ipairs(button:GetChildren()) do
@@ -711,6 +757,7 @@ local function refreshButtons(plot)
 		for _, child in ipairs(button:GetChildren()) do
 			if child:IsA("BillboardGui") then
 				child.Enabled = available
+				child.Text.Text = itemName(item, plot.lang) .. "\n" .. priceText(item, plot.lang)
 			end
 		end
 	end
@@ -735,7 +782,7 @@ local function buildItem(plot, item, animate)
 
 	local origin = plot.origin * CFrame.new(item.pos)
 	local builder = (item.model and builders.model) or builders[item.kind] or builders.box
-	local model = builder(item, origin)
+	local model = builder(item, origin, plot.lang)
 	model.Parent = plot.model
 	plot.built[item.id] = model
 
@@ -952,7 +999,11 @@ local function onPlayerAdded(player)
 	plot.owned = {}
 	plot.multiplier = hasDoubleCash(player) and 2 or 1
 	plotByPlayer[player] = plot
-	plot.nameLabel.Text = "КЛУБ · " .. player.DisplayName
+	plot.lang = langOf(player)
+	plot.nameLabel.Text = T(plot.lang, "club", player.DisplayName)
+	plot.safeLabel.Text = T(plot.lang, "machine")
+	plot.prompt.ActionText = T(plot.lang, "action")
+	plot.prompt.ObjectText = T(plot.lang, "object")
 	plot.nameLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
 
 	-- восстанавливаем всё, что было куплено раньше
@@ -993,7 +1044,7 @@ local function onPlayerRemoving(player)
 	if plot then
 		clearPlot(plot)
 		plot.owner = nil
-		plot.nameLabel.Text = "СВОБОДНЫЙ УЧАСТОК"
+		plot.nameLabel.Text = T("en", "freePlot")
 		plot.nameLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
 		refreshButtons(plot)
 		plotByPlayer[player] = nil
@@ -1060,7 +1111,7 @@ task.spawn(function()
 		for _, plot in ipairs(plots) do
 			if plot.owner and plot.income > 0 then
 				dropCoin(plot, plot.income)
-				plot.safeLabel.Text = "МОНЕТНЫЙ АППАРАТ\n+" .. short(plot.income) .. "/сек · жми E!"
+				plot.safeLabel.Text = T(plot.lang, "machineOn", short(plot.income))
 			end
 		end
 	end
