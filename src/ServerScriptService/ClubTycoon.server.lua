@@ -49,8 +49,15 @@ local CONFIG = {
 	PLOT_HEIGHT    = 1,
 
 	-- Музыка и звуки. Пусто = звука нет.
-	MUSIC_IDS      = {
-		"rbxassetid://109467593237197",  -- take2 (трек VLA2music)
+	MUSIC_IDS      = {   -- саундтрек, написанный VLA2music для игры
+		"rbxassetid://133708548304035",  -- 1 main theme v1
+		"rbxassetid://130837476281470",  -- 2 chill build v1
+		"rbxassetid://95389529482733",   -- 3 money rush v1
+		"rbxassetid://80980528574776",   -- 4 night grind v1
+		"rbxassetid://110101349456930",  -- 1 main theme v2
+		"rbxassetid://85207777649406",   -- 2 chill build v2
+		"rbxassetid://137736757201497",  -- 3 money rush v2
+		"rbxassetid://78794045428310",   -- 4 night grind v2
 	},
 	MUSIC_VOLUME   = 0.3,
 	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
