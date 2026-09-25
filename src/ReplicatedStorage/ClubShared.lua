@@ -8,13 +8,13 @@ local Shared = {}
 -- Геймпассы (разовая покупка). id = 0 — ещё не создан на сайте Roblox.
 -- Создать: create.roblox.com -> игра -> Monetization -> Passes.
 Shared.GAMEPASSES = {
-	{ key = "autocollect", id = 0, price = 99,  icon = "🎒",
+	{ key = "autocollect", id = 1998614421, price = 99,  icon = "🎒",
 	  ru = { "Авто-сбор", "Монеты сами летят\nв карман" },
 	  en = { "Auto Collect", "Coins go straight\nto your wallet" } },
-	{ key = "doublecash",  id = 0, price = 249, icon = "💰",
+	{ key = "doublecash",  id = 1998626423, price = 249, icon = "💰",
 	  ru = { "x2 денег", "Весь доход\nнавсегда x2!" },
 	  en = { "x2 Cash", "Double income\nforever!" } },
-	{ key = "speed",       id = 0, price = 49,  icon = "⚡",
+	{ key = "speed",       id = 1998992427, price = 49,  icon = "⚡",
 	  ru = { "Быстрый бег", "Бегаешь в 1.7 раза\nбыстрее" },
 	  en = { "Speed Boost", "Run 1.7x\nfaster" } },
 }
@@ -22,10 +22,10 @@ Shared.GAMEPASSES = {
 -- Пачки монет (можно покупать много раз) = доход клуба за N минут.
 -- Создать: Monetization -> Developer Products. id = 0 — ещё не создан.
 Shared.COIN_PACKS = {
-	{ id = 0, price = 19,  minutes = 15,   icon = "💵", ru = "Доход за 15 минут", en = "15 min of income" },
-	{ id = 0, price = 59,  minutes = 60,   icon = "💵", ru = "Доход за 1 час",    en = "1 hour of income" },
-	{ id = 0, price = 279, minutes = 360,  icon = "💰", ru = "Доход за 6 часов",  en = "6 hours of income" },
-	{ id = 0, price = 849, minutes = 1440, icon = "🏦", ru = "Доход за 24 часа",  en = "24 hours of income" },
+	{ id = 3714708765, price = 19,  minutes = 15,   icon = "💵", ru = "Доход за 15 минут", en = "15 min of income" },
+	{ id = 3714708811, price = 59,  minutes = 60,   icon = "💵", ru = "Доход за 1 час",    en = "1 hour of income" },
+	{ id = 3714708857, price = 279, minutes = 360,  icon = "💰", ru = "Доход за 6 часов",  en = "6 hours of income" },
+	{ id = 3714708900, price = 849, minutes = 1440, icon = "🏦", ru = "Доход за 24 часа",  en = "24 hours of income" },
 }
 
 -- Уровни компьютеров: каждый умножает доход всех ПК и меняет их вид
