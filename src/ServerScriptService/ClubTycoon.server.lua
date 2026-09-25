@@ -1160,6 +1160,44 @@ end
 -- 7. ПОКУПКИ
 --=========================================================================
 
+local fireworks
+-- Салют над сценой NAZAR CLUB
+function fireworks(plot)
+	local colors = { Color3.fromRGB(255, 60, 120), Color3.fromRGB(255, 220, 60), Color3.fromRGB(80, 220, 255), Color3.fromRGB(140, 255, 100), Color3.fromRGB(200, 100, 255) }
+	for i = 1, 14 do
+		local start = (plot.origin * CFrame.new((-5 + math.random(-12, 12)) * S, 2, -28 * S)).Position
+		local rocket = makePart({ Size = Vector3.new(0.6, 1.6, 0.6), Position = start, Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon, CanCollide = false, Parent = plot.model })
+		local peak = start + Vector3.new(math.random(-6, 6), math.random(45, 70), math.random(-6, 6))
+		local fly = TweenService:Create(rocket, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = peak })
+		fly:Play()
+		fly.Completed:Connect(function()
+			rocket.Transparency = 1
+			local c = colors[math.random(#colors)]
+			local burst = Instance.new("ParticleEmitter")
+			burst.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			burst.Color = ColorSequence.new(c)
+			burst.LightEmission = 1
+			burst.Size = NumberSequence.new(1.6, 0)
+			burst.Lifetime = NumberRange.new(1.2, 1.8)
+			burst.Speed = NumberRange.new(25, 35)
+			burst.SpreadAngle = Vector2.new(180, 180)
+			burst.Acceleration = Vector3.new(0, -15, 0)
+			burst.Drag = 1.5
+			burst.Rate = 0
+			burst.Parent = rocket
+			burst:Emit(120)
+			local light = Instance.new("PointLight")
+			light.Color = c
+			light.Range = 60
+			light.Brightness = 4
+			light.Parent = rocket
+			task.delay(0.4, function() light:Destroy() end)
+			task.delay(2.5, function() rocket:Destroy() end)
+		end)
+		task.wait(math.random(15, 40) / 100)
+	end
+end
+
 local buyCooldown = {}   -- игрок -> время последней попытки
 
 local function tryBuy(player, plot, item)
@@ -1181,6 +1219,8 @@ local function tryBuy(player, plot, item)
 	recalcIncome(plot)
 	refreshButtons(plot)
 	playSound(CONFIG.SOUND_BUY, plot.buttons[item.id], 0.6)
+
+	if item.id == "stage" then task.spawn(fireworks, plot) end
 
 	-- последняя покупка этажа: клиент покажет праздничный экран
 	if item.id == ITEMS[#ITEMS].id then

@@ -123,7 +123,7 @@ local NEON = {
 	Color3.fromRGB(255, 50, 200), Color3.fromRGB(0, 230, 255), Color3.fromRGB(170, 80, 255),
 	Color3.fromRGB(255, 200, 40), Color3.fromRGB(60, 255, 140),
 }
-local SIGNS = { "ARCADE", "PIZZA", "ESPORTS", "GAME ZONE", "CYBER", "NEON CAFE", "24/7", "NAZAR CLUB", "VR WORLD", "BURGERS" }
+local SIGNS = { "ARCADE", "PIZZA", "ESPORTS", "GAME ZONE", "CYBER", "NEON CAFE", "24/7", "NAZAR CLUB", "VLA2MUSIC", "BURGERS" }
 local WINDOW_ON = { Color3.fromRGB(255, 225, 150), Color3.fromRGB(160, 220, 255), Color3.fromRGB(255, 160, 220) }
 
 local function tower(x, z, w, d, h, signText)
