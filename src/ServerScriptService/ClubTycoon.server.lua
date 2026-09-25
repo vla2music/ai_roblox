@@ -24,6 +24,7 @@ local MaterialService    = game:GetService("MaterialService")
 -- Красивые модели из магазина Roblox лежат в ServerStorage > Шаблоны.
 -- Если какой-то модели там нет, вместо неё строится простая из кубиков.
 local templates = ServerStorage:FindFirstChild("Шаблоны")
+local Shared = require(game:GetService("ReplicatedStorage"):WaitForChild("ClubShared"))
 
 --=========================================================================
 -- 1. НАСТРОЙКИ
@@ -94,17 +95,7 @@ local CONFIG = {
 	-- Создать: create.roblox.com -> игра -> Monetization -> Passes -> Create,
 	-- потом вписать сюда ID. price — только для надписи на табло, реальную
 	-- цену ставишь на сайте Roblox.
-	GAMEPASSES = {
-		{ key = "autocollect", id = 0, price = 99,  icon = "🎒",
-		  ru = { "Авто-сбор", "Монеты сами летят\nв карман" },
-		  en = { "Auto Collect", "Coins go straight\nto your wallet" } },
-		{ key = "doublecash",  id = 0, price = 249, icon = "💰",
-		  ru = { "x2 денег", "Весь доход\nнавсегда x2!" },
-		  en = { "x2 Cash", "Double income\nforever!" } },
-		{ key = "speed",       id = 0, price = 49,  icon = "⚡",
-		  ru = { "Быстрый бег", "Бегаешь в 1.7 раза\nбыстрее" },
-		  en = { "Speed Boost", "Run 1.7x\nfaster" } },
-	},
+	GAMEPASSES = Shared.GAMEPASSES,   -- настройки геймпассов — в ReplicatedStorage/ClubShared
 }
 
 local S = CONFIG.SCALE
@@ -202,15 +193,18 @@ local function loadData(userId)
 			money = tonumber(result.money) or CONFIG.START_MONEY,
 			owned = type(result.owned) == "table" and result.owned or {},
 			rebirths = tonumber(result.rebirths) or 0,
+			pcTier = tonumber(result.pcTier) or 1,
+			dailyLast = tonumber(result.dailyLast) or 0,
+			dailyStreak = tonumber(result.dailyStreak) or 0,
 		}
 	end
 	if not ok then
 		warn("[КлубТайкун] Не удалось загрузить данные:", result)
 		-- loadFailed: сохранять такого игрока нельзя, иначе пустой клуб
 		-- затрёт настоящий прогресс в хранилище
-		return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0, loadFailed = true }
+		return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0, pcTier = 1, dailyLast = 0, dailyStreak = 0, loadFailed = true }
 	end
-	return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0 }
+	return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0, pcTier = 1, dailyLast = 0, dailyStreak = 0 }
 end
 
 local noSave = {}   -- userId -> true, если сохранение не загрузилось
@@ -221,7 +215,10 @@ local function saveData(userId, data)
 		return false
 	end
 	local ok, err = pcall(function()
-		store:SetAsync("p_" .. userId, { money = data.money, owned = data.owned, rebirths = data.rebirths })
+		store:SetAsync("p_" .. userId, {
+			money = data.money, owned = data.owned, rebirths = data.rebirths,
+			pcTier = data.pcTier, dailyLast = data.dailyLast, dailyStreak = data.dailyStreak,
+		})
 	end)
 	if not ok then
 		warn("[КлубТайкун] Не удалось сохранить данные:", err)
@@ -492,8 +489,10 @@ local function simpleDesk(parent, cf, color)
 end
 
 -- Компьютеры: один или целый ряд
-function builders.pcs(item, origin, model)
-	local color = item.color or Color3.fromRGB(200, 60, 80)
+function builders.pcs(item, origin, model, lang, plot)
+	local tier = plot and plot.pcTier or 1
+	local tierColor = Shared.PC_TIERS[tier].color
+	local color = item.color or tierColor
 	for _, p in ipairs(item.pcs) do
 		local cf = at(origin, p[1], 0, p[2]) * CFrame.Angles(0, math.rad(item.rot or 0), 0)
 		local pc = cloneTemplate("pc", CONFIG.PC_SCALE)
@@ -506,6 +505,28 @@ function builders.pcs(item, origin, model)
 				end
 			end
 			pc.Parent = model
+			-- с уровня 2: светящаяся подсветка под столом цвета уровня
+			if tier >= 2 then
+				local glow = makePart({
+					Size = Vector3.new(6, 0.15, 5.5),
+					CFrame = cf * CFrame.new(0, 0.1, 0),
+					Color = tierColor,
+					Material = Enum.Material.Neon,
+					Transparency = 0.35,
+					CanCollide = false,
+					Parent = model,
+				})
+				if tier >= 4 then
+					local sparkle = Instance.new("ParticleEmitter")
+					sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+					sparkle.Color = ColorSequence.new(tierColor)
+					sparkle.Rate = 3
+					sparkle.Lifetime = NumberRange.new(1, 2)
+					sparkle.Speed = NumberRange.new(1, 2)
+					sparkle.Size = NumberSequence.new(0.4)
+					sparkle.Parent = glow
+				end
+			end
 		else
 			simpleDesk(model, cf, color)
 		end
@@ -705,72 +726,32 @@ function builders.stage(item, origin, model, lang)
 	for _, dx in ipairs({ -7, 7 }) do
 		box(model, origin, Vector3.new(3.5 * S, 16, 1), x0 + dx, 8, -33.6, Color3.fromRGB(150, 20, 40), Enum.Material.Fabric)
 	end
-	-- надпись над портретом
-	local title = box(model, origin, Vector3.new(14, 2.4, 0.2), x0, 17.2, -33.9, Color3.fromRGB(30, 25, 45))
-	addSign(title, Enum.NormalId.Back, lang == "ru" and "ВЛАДЕЛЕЦ КЛУБА" or "CLUB OWNER", Color3.fromRGB(255, 215, 120))
-	-- золотая рамка и портрет
-	box(model, origin, Vector3.new(9.4, 12.6, 0.3), x0, 9.6, -33.85, Color3.fromRGB(230, 180, 60), Enum.Material.Metal)
-	local frame = box(model, origin, Vector3.new(8.6, 11.8, 0.3), x0, 9.6, -33.7, Color3.fromRGB(20, 20, 25))
+	-- большая вывеска «NAZAR CLUB» на заднике
 	local _ = back
-	if CONFIG.POSTER_VIDEO ~= "" then
-		local gui = Instance.new("SurfaceGui")
-		gui.Face = Enum.NormalId.Back
-		gui.Parent = frame
-		local video = Instance.new("VideoFrame")
-		video.Size = UDim2.fromScale(1, 1)
-		video.BackgroundTransparency = 1
-		video.Video = CONFIG.POSTER_VIDEO
-		video.Looped = true
-		video.Volume = CONFIG.POSTER_VIDEO_VOLUME
-		video.Parent = gui
-		video:Play()
-	elseif CONFIG.POSTER_FLIPBOOK.image ~= "" then
-		local fb = CONFIG.POSTER_FLIPBOOK
-		local gui = Instance.new("SurfaceGui")
-		gui.Face = Enum.NormalId.Back
-		gui.Parent = frame
-		local img = Instance.new("ImageLabel")
-		img.Size = UDim2.fromScale(1, 1)
-		img.BackgroundTransparency = 1
-		img.Image = fb.image
-		img.ImageRectSize = Vector2.new(fb.frameW, fb.frameH)
-		img.Parent = gui
-
-		local sound
-		if fb.sound ~= "" then
-			sound = Instance.new("Sound")
-			sound.SoundId = fb.sound
-			sound.Volume = fb.volume
-			sound.RollOffMaxDistance = 80
-			sound.Parent = frame
-		end
-
-		local total = fb.cols * fb.rows
-		local step = fb.length / total
-		task.spawn(function()
-			while frame.Parent do
-				if sound then sound:Play() end
-				for i = 0, total - 1 do
-					if not frame.Parent then return end
-					img.ImageRectOffset = Vector2.new((i % fb.cols) * fb.frameW, math.floor(i / fb.cols) * fb.frameH)
-					task.wait(step)
-				end
-				task.wait(fb.pause)
-			end
-		end)
-	elseif CONFIG.POSTER_IMAGE ~= "" then
-		local gui = Instance.new("SurfaceGui")
-		gui.Face = Enum.NormalId.Back
-		gui.Parent = frame
-		local img = Instance.new("ImageLabel")
-		img.Size = UDim2.fromScale(1, 1)
-		img.BackgroundTransparency = 1
-		img.Image = CONFIG.POSTER_IMAGE
-		img.ScaleType = Enum.ScaleType.Fit
-		img.Parent = gui
-	else
-		addSign(frame, Enum.NormalId.Back, T(lang, "poster"), Color3.fromRGB(255, 220, 150))
+	box(model, origin, Vector3.new(13 * S, 8.6, 0.3), x0, 10, -33.85, Color3.fromRGB(230, 180, 60), Enum.Material.Metal)
+	local sign = box(model, origin, Vector3.new(12.4 * S, 8, 0.3), x0, 10, -33.7, Color3.fromRGB(18, 14, 30))
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Back
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.Parent = sign
+	local function line(text, y, h, color)
+		local l = Instance.new("TextLabel")
+		l.Size = UDim2.new(1, -40, h, 0)
+		l.Position = UDim2.new(0, 20, y, 0)
+		l.BackgroundTransparency = 1
+		l.Font = Enum.Font.GothamBlack
+		l.TextScaled = true
+		l.Text = text
+		l.TextColor3 = color
+		l.Parent = gui
+		local st = Instance.new("UIStroke")
+		st.Color = Color3.fromRGB(120, 40, 200)
+		st.Thickness = 3
+		st.Parent = l
 	end
+	line("NAZAR", 0.08, 0.46, Color3.fromRGB(255, 215, 90))
+	line("CLUB", 0.52, 0.4, Color3.fromRGB(90, 230, 255))
 	-- прожекторы разных цветов
 	for i, x in ipairs({ -11, -5, 1 }) do
 		local lamp = box(model, origin, Vector3.new(1.5, 1.5, 1.5), x, 15, -26, Color3.fromRGB(30, 30, 30), Enum.Material.Metal)
@@ -1067,9 +1048,12 @@ end
 
 local function recalcIncome(plot)
 	local total = 0
+	local tierMult = Shared.PC_TIERS[plot.pcTier or 1].mult
 	for id in pairs(plot.owned) do
 		local item = ITEM_BY_ID[id]
-		if item then total += item.income end
+		if item then
+			total += item.kind == "pcs" and item.income * tierMult or item.income
+		end
 	end
 	local boost = plot.owned.server and CONFIG.SERVER_BOOST or 1
 	local rebirthBoost = 1 + (plot.rebirths or 0)   -- ребёрт: x2, x3, x4...
@@ -1089,7 +1073,7 @@ local function buildItem(plot, item, animate)
 	model.Name = item.id
 	local builder = builders[item.kind]
 	if builder then
-		builder(item, plot.origin, model, plot.lang)
+		builder(item, plot.origin, model, plot.lang, plot)
 	end
 	model.Parent = plot.model
 	plot.built[item.id] = model
@@ -1385,6 +1369,9 @@ local function onPlayerAdded(player)
 	checkPasses(player)
 	plot.multiplier = hasPass(player, "doublecash") and 2 or 1
 	plot.rebirths = data.rebirths
+	plot.pcTier = math.clamp(data.pcTier, 1, #Shared.PC_TIERS)
+	plot.dailyLast = data.dailyLast
+	plot.dailyStreak = data.dailyStreak
 	plotByPlayer[player] = plot
 	plot.lang = langOf(player)
 	plot.nameLabel.Text = T(plot.lang, "club", player.DisplayName)
@@ -1425,6 +1412,9 @@ local function onPlayerAdded(player)
 			money.Value = CONFIG.START_MONEY
 			plot.rebirths = 0
 			rebirthsValue.Value = 0
+			plot.pcTier = 1
+			plot.dailyLast = 0
+			plot.dailyStreak = 0
 			recalcIncome(plot)
 			refreshButtons(plot)
 		end)
@@ -1444,6 +1434,9 @@ local function collectData(player)
 		money = money and money.Value or CONFIG.START_MONEY,
 		owned = plot and plot.owned or {},
 		rebirths = rebirths and rebirths.Value or 0,
+		pcTier = plot and plot.pcTier or 1,
+		dailyLast = plot and plot.dailyLast or 0,
+		dailyStreak = plot and plot.dailyStreak or 0,
 	}
 end
 
@@ -1473,6 +1466,85 @@ rebirthEvent.OnServerEvent:Connect(function(player)
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if root then root.CFrame = plot.spawnPad.CFrame * CFrame.new(0, 4, 0) end
 end)
+
+--=========================================================================
+-- МЕНЮ: улучшение компов, ежедневные награды, покупка монет за Robux
+--=========================================================================
+
+local function dailyAmount(plot, day)
+	local minutes = Shared.DAILY[day].minutes
+	return math.max(100, math.floor(plot.income * 60 * minutes))
+end
+
+local function menuState(plot)
+	local now = os.time()
+	local since = now - (plot.dailyLast or 0)
+	local streak = plot.dailyStreak or 0
+	if since > Shared.DAILY_RESET then streak = 0 end
+	local day = streak % #Shared.DAILY + 1
+	return {
+		pcTier = plot.pcTier or 1,
+		income = plot.income,
+		dailyDay = day,
+		dailyReadyIn = math.max(0, Shared.DAILY_COOLDOWN - since),
+		dailyAmount = dailyAmount(plot, day),
+	}
+end
+
+local clubAction = Instance.new("RemoteFunction")
+clubAction.Name = "ClubAction"
+clubAction.Parent = game:GetService("ReplicatedStorage")
+
+clubAction.OnServerInvoke = function(player, action)
+	local plot = plotByPlayer[player]
+	if not plot or plot.owner ~= player then return nil end
+	local money = player.leaderstats[CONFIG.CURRENCY_NAME]
+
+	if action == "upgrade" then
+		local nextTier = (plot.pcTier or 1) + 1
+		local tier = Shared.PC_TIERS[nextTier]
+		if tier and money.Value >= tier.cost then
+			money.Value -= tier.cost
+			plot.pcTier = nextTier
+			-- перестраиваем все купленные компы в новом виде
+			for _, item in ipairs(ITEMS) do
+				if item.kind == "pcs" and plot.built[item.id] then
+					plot.built[item.id]:Destroy()
+					plot.built[item.id] = nil
+					buildItem(plot, item, true)
+				end
+			end
+			recalcIncome(plot)
+			playSound(CONFIG.SOUND_BUY, plot.machine, 0.6)
+		end
+	elseif action == "claimDaily" then
+		local st = menuState(plot)
+		if st.dailyReadyIn == 0 then
+			money.Value += st.dailyAmount
+			plot.dailyStreak = (os.time() - (plot.dailyLast or 0) > Shared.DAILY_RESET) and 1 or (plot.dailyStreak or 0) + 1
+			plot.dailyLast = os.time()
+		end
+	end
+	return menuState(plot)
+end
+
+-- Покупка пачек монет за Robux (Developer Products)
+MarketplaceService.ProcessReceipt = function(receipt)
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	local plot = player and plotByPlayer[player]
+	if not plot then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	for _, pack in ipairs(Shared.COIN_PACKS) do
+		if pack.id ~= 0 and pack.id == receipt.ProductId then
+			local amount = math.max(1000, math.floor(plot.income * 60 * pack.minutes))
+			player.leaderstats[CONFIG.CURRENCY_NAME].Value += amount
+			saveData(player.UserId, collectData(player))
+			return Enum.ProductPurchaseDecision.PurchaseGranted
+		end
+	end
+	return Enum.ProductPurchaseDecision.NotProcessedYet
+end
 
 local function onPlayerRemoving(player)
 	saveData(player.UserId, collectData(player))
