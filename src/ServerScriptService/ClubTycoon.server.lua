@@ -56,6 +56,10 @@ local CONFIG = {
 	MUSIC_VOLUME   = 0.3,
 	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
 	SOUND_COLLECT  = "rbxassetid://7147797532",       -- звук сбора монетки (удар snare)
+	-- Гул людей в клубе: включается с первым ПК и растёт с каждым новым.
+	SOUND_CROWD    = "rbxassetid://9112787259",       -- Glendale Galleria Mall 1 (SFX)
+	CROWD_VOLUME_MIN = 0.12,
+	CROWD_VOLUME_MAX = 0.45,
 
 	-- Ковролин для пола (создан в Studio, лежит в MaterialService)
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
@@ -731,6 +735,19 @@ local function createPlot(index)
 	local coinPad = box(model, origin, Vector3.new(16, 0.2, 10), -24, 0.1, -25, Color3.fromRGB(90, 70, 20), Enum.Material.Metal, { CanCollide = false })
 	coinPad.Name = "ПлощадкаМонет"
 
+	-- гул людей: звучит из центра клуба, слышно только рядом
+	local crowdPart = box(model, origin, Vector3.new(1, 1, 1), 0, 6, 0, Color3.new(), nil,
+		{ Transparency = 1, CanCollide = false, CanTouch = false, CanQuery = false })
+	local crowd = Instance.new("Sound")
+	crowd.Name = "ГулЛюдей"
+	crowd.SoundId = CONFIG.SOUND_CROWD
+	crowd.Looped = true
+	crowd.Volume = 0
+	crowd.RollOffMode = Enum.RollOffMode.InverseTapered
+	crowd.RollOffMinDistance = 60
+	crowd.RollOffMaxDistance = 140
+	crowd.Parent = crowdPart
+
 	local coinFolder = Instance.new("Folder")
 	coinFolder.Name = "Монеты"
 	coinFolder.Parent = model
@@ -760,6 +777,7 @@ local function createPlot(index)
 		coinPad    = coinPad,
 		coinFolder = coinFolder,
 		arrow      = arrow,
+		crowd      = crowd,
 		lastClick  = 0,
 		lang       = "en",
 		safeLabel  = safeLabel,
@@ -842,6 +860,25 @@ local function refreshButtons(plot)
 	end
 end
 
+-- Чем больше компьютеров, тем громче гул людей
+local function updateCrowd(plot)
+	local pcs = 0
+	for id in pairs(plot.owned) do
+		local item = ITEM_BY_ID[id]
+		if item and item.kind == "pcs" then pcs += #item.pcs end
+	end
+	local crowd = plot.crowd
+	if pcs == 0 or CONFIG.SOUND_CROWD == "" then
+		crowd:Stop()
+		return
+	end
+	local t = math.clamp(pcs / 35, 0, 1)   -- всего на этаже ~35 ПК
+	local target = CONFIG.CROWD_VOLUME_MIN + (CONFIG.CROWD_VOLUME_MAX - CONFIG.CROWD_VOLUME_MIN) * t
+	if not crowd.IsPlaying then crowd:Play() end
+	TweenService:Create(crowd, TweenInfo.new(2), { Volume = target }):Play()
+end
+
+
 local function recalcIncome(plot)
 	local total = 0
 	for id in pairs(plot.owned) do
@@ -855,6 +892,7 @@ local function recalcIncome(plot)
 		local stats = plot.owner:FindFirstChild("Stats")
 		if stats then stats.Income.Value = plot.income end
 	end
+	updateCrowd(plot)
 end
 
 local function buildItem(plot, item, animate)
@@ -890,6 +928,8 @@ local function clearPlot(plot)
 	plot.income = 0
 	plot.multiplier = 1
 	plot.coinFolder:ClearAllChildren()
+	plot.crowd:Stop()
+	plot.crowd.Volume = 0
 	local stats = plot.owner and plot.owner:FindFirstChild("Stats")
 	if stats then stats.Storage.Value = 0 end
 end
