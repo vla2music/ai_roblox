@@ -96,7 +96,7 @@ local function makeWindow(title, accent)
 	})
 	button(win, {
 		Size = UDim2.new(0.08, 0, 0.12, 0), Position = UDim2.new(0.935, 0, -0.04, 0),
-		BackgroundColor3 = Color3.fromRGB(230, 50, 50), Text = "✕",
+		BackgroundColor3 = Color3.fromRGB(230, 50, 50), Text = "X",
 	}, function() win.Visible = false end)
 
 	local body = Instance.new("ScrollingFrame")

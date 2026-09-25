@@ -50,15 +50,13 @@ local CONFIG = {
 
 	-- Музыка и звуки. Пусто = звука нет.
 	MUSIC_IDS      = {
-		"rbxassetid://110520973603761",  -- Drillbeat
-		"rbxassetid://139164113687966",  -- PEACE OF MIND
-		"rbxassetid://120540010768924",  -- The Calm After Sunset
+		"rbxassetid://109467593237197",  -- take2 (трек VLA2music)
 	},
 	MUSIC_VOLUME   = 0.3,
 	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
-	SOUND_COLLECT  = "rbxassetid://7147797532",       -- звук сбора монетки (удар snare)
+	SOUND_COLLECT  = "rbxassetid://119832205290967",  -- звон монетки (загружен VLA2music)
 	-- Гул людей в клубе: включается с первым ПК и растёт с каждым новым.
-	SOUND_CROWD    = "rbxassetid://9112787259",       -- Glendale Galleria Mall 1 (SFX)
+	SOUND_CROWD    = "",   -- чужой звук гула Roblox не разрешил (403); нужен свой
 	CROWD_VOLUME_MIN = 0.12,
 	CROWD_VOLUME_MAX = 0.45,
 
