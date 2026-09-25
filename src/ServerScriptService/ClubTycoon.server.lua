@@ -2074,6 +2074,43 @@ clubAction.OnServerInvoke = function(player, action)
 	return menuState(plot)
 end
 
+-- МИНИ-ИГРЫ: «Лови кружки» и «Быстрый счёт». Раз в 5 минут каждая.
+-- Сервер сам проверяет время и потолок очков, чтобы нельзя было накрутить.
+local MINIGAMES = {
+	click = { maxScore = 150, perPoint = 2 },   -- награда за очко = доход за 2 сек
+	math  = { maxScore = 45,  perPoint = 6 },   -- за пример = доход за 6 сек
+}
+local MINIGAME_COOLDOWN = 300
+local MINIGAME_TIME = 60
+local miniStart = {}
+
+local miniGame = Instance.new("RemoteFunction")
+miniGame.Name = "MiniGame"
+miniGame.Parent = game:GetService("ReplicatedStorage")
+miniGame.OnServerInvoke = function(player, action, name, score)
+	local cfg = MINIGAMES[name]
+	local plot = plotByPlayer[player]
+	if not cfg or not plot then return nil end
+	local key = "MG_" .. name
+	if action == "start" then
+		if (player:GetAttribute(key) or 0) > os.time() then return false end
+		miniStart[player] = miniStart[player] or {}
+		miniStart[player][name] = os.clock()
+		return true
+	elseif action == "finish" then
+		local started = miniStart[player] and miniStart[player][name]
+		if not started then return nil end
+		miniStart[player][name] = nil
+		if os.clock() - started < MINIGAME_TIME - 5 then return nil end   -- слишком рано — не засчитываем
+		score = math.clamp(math.floor(tonumber(score) or 0), 0, cfg.maxScore)
+		local reward = math.floor(score * math.max(5, plot.income * cfg.perPoint))
+		player.leaderstats[CONFIG.CURRENCY_NAME].Value += reward
+		player:SetAttribute(key, os.time() + MINIGAME_COOLDOWN)
+		return reward
+	end
+end
+Players.PlayerRemoving:Connect(function(p) miniStart[p] = nil end)
+
 -- Покупка пачек монет за Robux (Developer Products)
 MarketplaceService.ProcessReceipt = function(receipt)
 	local player = Players:GetPlayerByUserId(receipt.PlayerId)
