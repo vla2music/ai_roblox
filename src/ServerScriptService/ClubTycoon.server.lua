@@ -4,7 +4,12 @@
 
 	Весь мир строится прямо из кода — ничего руками лепить не нужно.
 	Хочешь поменять цены, доход или добавить новую покупку — правь
-	таблицу ITEMS ниже, больше нигде ничего трогать не надо.
+	таблицу ITEMS ниже.
+
+	Планировка — по рисунку Назара (первый этаж):
+	  слева комнаты PlayStation / VIP SOLO / Стрим, внизу серверная и туалет,
+	  в центре банкомат, сцена с фото, магазин, стойка админа, лаунж,
+	  справа чемпионатная и общий зал с компами.
 ==========================================================================]]
 
 local Players            = game:GetService("Players")
@@ -27,19 +32,22 @@ local templates = ServerStorage:FindFirstChild("Шаблоны")
 local CONFIG = {
 	CURRENCY_NAME  = "Coins",   -- колонка в таблице игроков (одна для всех языков)
 	MAX_PLOTS      = 6,      -- сколько игроков может строить одновременно
-	PLOT_SIZE      = 90,     -- размер участка в студах
+	PLOT_WIDTH     = 200,    -- участок: ширина (X) в студах
+	PLOT_DEPTH     = 140,    -- участок: глубина (Z) в студах
 	PLOT_GAP       = 40,     -- расстояние между участками
 	START_MONEY    = 0,
 	AUTOSAVE_SEC   = 60,
-	DATASTORE_NAME = "ClubTycoon_v1",
+	DATASTORE_NAME = "ClubTycoon_v2",   -- v2: новая планировка, все начинают заново
 
-	-- Участок приподнят над базовой площадкой Roblox. Без этого два пола
-	-- оказываются на одной высоте и картинка рябит.
+	-- План нарисован в «клетках» 120 x 70. Одна клетка = SCALE студов.
+	SCALE          = 1.5,
+	WALL_HEIGHT    = 14,
+	PC_SCALE       = 0.75,   -- компьютеры из магазина немного уменьшены
+
+	-- Участок приподнят над базовой площадкой Roblox, чтобы пол не рябил.
 	PLOT_HEIGHT    = 1,
 
-	-- Музыка и звуки.
-	-- ID берутся в Studio: Toolbox -> Audio -> правой кнопкой по треку
-	-- -> Copy Asset ID. Пусто = звука нет, игра работает как обычно.
+	-- Музыка и звуки. Пусто = звука нет.
 	MUSIC_IDS      = {
 		"rbxassetid://110520973603761",  -- Drillbeat
 		"rbxassetid://139164113687966",  -- PEACE OF MIND
@@ -47,53 +55,98 @@ local CONFIG = {
 	},
 	MUSIC_VOLUME   = 0.3,
 	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
-	SOUND_COLLECT  = "rbxassetid://7147797532",  -- звук сбора монетки (удар snare)
+	SOUND_COLLECT  = "rbxassetid://7147797532",       -- звук сбора монетки (удар snare)
 
 	-- Ковролин для пола (создан в Studio, лежит в MaterialService)
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
 
-	-- Монетный аппарат: сам выбрасывает монетки на площадку,
+	-- Фото владельца на сцене. Когда загрузим картинку — впиши её ID сюда.
+	POSTER_IMAGE   = "",
+
+	-- Банкомат: сам выбрасывает монетки на площадку,
 	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
 	CLICK_COOLDOWN = 0.25,   -- как часто можно жать E (секунды)
 	CLICK_BONUS    = 0.3,    -- бонус за нажатие = доход в секунду * это число
 	MAX_COINS      = 40,     -- больше монет на площадке не лежит, они «слипаются»
 
-	-- ID геймпасса «x2 монеты». Пока 0 — геймпасс просто выключен.
-	-- Когда создашь геймпасс на сайте Roblox, впиши сюда его номер.
+	SERVER_BOOST   = 1.5,    -- серверная умножает весь доход
+
+	-- ID геймпасса «x2 монеты». Пока 0 — геймпасс выключен.
 	DOUBLE_CASH_GAMEPASS = 0,
 }
+
+local S = CONFIG.SCALE
 
 --=========================================================================
 -- 2. ЧТО МОЖНО ПОСТРОИТЬ
 --
---   id      — уникальное имя (латиницей, без пробелов)
---   name    — что увидит игрок на кнопке
---   cost    — сколько стоит
---   income  — сколько монет в секунду приносит
---   needs   — что нужно купить до этого (id предыдущей покупки)
---   pos     — где стоит объект (X, Y, Z относительно центра участка)
---   kind    — как выглядит: "desk" (комп. стол), "box" (ящик/автомат),
---             "zone" (зона на полу), "sign" (вывеска), "walls" (стены)
---   model   — имя красивой модели из ServerStorage > Шаблоны (если есть)
---   rot     — поворот модели в градусах
---   chairs  — сколько кресел поставить на зону
+-- Все координаты — в клетках плана: X от -60 (лево) до 60 (право),
+-- Z от -35 (верх рисунка) до 35 (низ, там вход).
+--
+--   id      — уникальное имя (латиницей)
+--   name/en — название по-русски и по-английски
+--   cost    — цена, income — монет в секунду
+--   needs   — что нужно купить до этого
+--   kind    — "model" (модель из магазина), "pcs" (компьютеры),
+--             "room" (комната со стенами), "outer" (стены клуба),
+--             "lounge", "sofaset", "stage"
+--   btn     — где стоит кнопка покупки
 --=========================================================================
 
 local ITEMS = {
-	{ id="reception", name="Ресепшн", en="Reception",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  6, 0,  22), kind="box",   model="reception", rot=180,  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
-	{ id="pc1",       name="Игровой ПК №1", en="Gaming PC #1",        cost=25,    income=2,   needs="reception", pos=Vector3.new(-34, 0, -30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc2",       name="Игровой ПК №2", en="Gaming PC #2",        cost=120,   income=3,   needs="pc1",       pos=Vector3.new(-34, 0, -15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc3",       name="Игровой ПК №3", en="Gaming PC #3",        cost=300,   income=5,   needs="pc2",       pos=Vector3.new(-34, 0,   0), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="vending",   name="Автомат с едой", en="Snack Machine",       cost=650,   income=9,   needs="pc3",       pos=Vector3.new( 34, 0,  30), kind="box",   model="vending", rot=-90,  size=Vector3.new(5,9,4),   color=Color3.fromRGB(230,150, 30) },
-	{ id="chairs",    name="Геймерские кресла", en="Gaming Chairs",    cost=1200,  income=14,  needs="vending",   pos=Vector3.new(-14, 0,  16), kind="zone",  chairs=4, size=Vector3.new(16,1,16),  color=Color3.fromRGB(120, 60,190) },
-	{ id="pc4",       name="Игровой ПК №4", en="Gaming PC #4",        cost=2000,  income=20,  needs="chairs",    pos=Vector3.new(-34, 0,  15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc5",       name="Игровой ПК №5", en="Gaming PC #5",        cost=3200,  income=26,  needs="pc4",       pos=Vector3.new(-34, 0,  30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
-	{ id="ac",        name="Кондиционер", en="Air Conditioner",          cost=5000,  income=35,  needs="pc5",       pos=Vector3.new(  0, 0, -42), kind="box",   model="ac", backing=true,  size=Vector3.new(12,5,4),  color=Color3.fromRGB(220,220,230) },
-	{ id="stream",    name="Стримерская комната", en="Streamer Room",  cost=8000,  income=55,  needs="ac",        pos=Vector3.new( 30, 0, -28), kind="desk",  model="pc", rot=-90, color=Color3.fromRGB( 40,180,140) },
-	{ id="vip",       name="VIP-зона", en="VIP Zone",             cost=13000, income=85,  needs="stream",    pos=Vector3.new( 28, 0,  -4), kind="zone",  chairs=3, size=Vector3.new(18,1,18),  color=Color3.fromRGB(240,200, 60) },
-	{ id="tourney",   name="Турнирная сцена", en="Tournament Stage",      cost=22000, income=140, needs="vip",       pos=Vector3.new(  4, 0, -20), kind="zone", size=Vector3.new(22,2,14),  color=Color3.fromRGB( 90,110,255) },
-	{ id="walls",     name="Стены и крыша", en="Walls & Roof",        cost=35000, income=60,  needs="tourney",   pos=Vector3.new(  0, 0,   0), kind="walls", btn=Vector3.new(-8, 0, 30) },
-	{ id="neon",      name="Неоновая вывеска", en="Neon Sign",     cost=50000, income=250, needs="walls",     pos=Vector3.new(  0,26,  42), kind="sign", btn=Vector3.new( 8, 0, 30) },
+	{ id="admin",   name="Стойка админа",   en="Admin Desk",       cost=0,      income=1,   needs=nil,
+	  kind="model", model="reception", pos={-13, 10}, rot=90, scale=0.8, btn={-4, 28} },
+
+	{ id="pc1", name="Игровой ПК №1", en="Gaming PC #1", cost=15,  income=1, needs="admin", kind="pcs", pcs={{-24, 14}}, rot=-90, btn={-30, 14} },
+	{ id="pc2", name="Игровой ПК №2", en="Gaming PC #2", cost=40,  income=2, needs="pc1",   kind="pcs", pcs={{-24,  5}}, rot=-90, btn={-30,  5} },
+	{ id="pc3", name="Игровой ПК №3", en="Gaming PC #3", cost=90,  income=3, needs="pc2",   kind="pcs", pcs={{-24, -3}}, rot=-90, btn={-30, -3} },
+	{ id="pc4", name="Игровой ПК №4", en="Gaming PC #4", cost=160, income=4, needs="pc3",   kind="pcs", pcs={{-24,-11}}, rot=-90, btn={-30,-11} },
+
+	{ id="walls",  name="Стены клуба", en="Club Walls",  cost=250,  income=3, needs="pc4",  kind="outer", btn={8, 28} },
+	{ id="shop",   name="Магазин",     en="Snack Shop",  cost=400,  income=6, needs="walls",
+	  kind="model", model="vending", pos={-15, -6}, rot=90, btn={-9, -4} },
+
+	{ id="hall",  name="Общий зал", en="Main Hall", cost=600, income=4, needs="shop",
+	  kind="room", rect={13, 0.5, 50, 33}, doors={{"W", 31, 4}}, floor=Color3.fromRGB(70, 60, 95), btn={8, 31} },
+	{ id="hall1", name="Ряд компов 1", en="PC Row 1", cost=900,  income=12, needs="hall",  kind="pcs",
+	  pcs={{17,8},{24,8},{31,8},{38,8},{45,8}},    rot=0, btn={31, 3} },
+	{ id="hall2", name="Ряд компов 2", en="PC Row 2", cost=1600, income=18, needs="hall1", kind="pcs",
+	  pcs={{17,17},{24,17},{31,17},{38,17},{45,17}}, rot=0, btn={31, 12.5} },
+	{ id="hall3", name="Ряд компов 3", en="PC Row 3", cost=2800, income=26, needs="hall2", kind="pcs",
+	  pcs={{17,26},{24,26},{31,26},{38,26},{45,26}}, rot=0, btn={31, 21.5} },
+
+	{ id="toilet", name="Туалет", en="Restroom", cost=3500, income=26, needs="hall3",
+	  kind="room", rect={-31, 20, -19, 35}, doors={{"E", 25, 4}}, skip={S=true}, extra="toilet",
+	  floor=Color3.fromRGB(200, 205, 215), btn={-15, 25} },
+	{ id="lounge", name="Лаунж с телевизором", en="TV Lounge", cost=5000, income=15, needs="toilet",
+	  kind="lounge", btn={4, 30} },
+	{ id="sofaset", name="Диван и стулья", en="Sofa & Chairs", cost=7000, income=20, needs="lounge",
+	  kind="sofaset", btn={-2, -9} },
+	{ id="toprow", name="Ряд из 6 компов", en="6 PC Row", cost=10000, income=30, needs="sofaset", kind="pcs",
+	  pcs={{19,-31},{25,-31},{31,-31},{37,-31},{43,-31},{49,-31}}, rot=0, btn={34, -25} },
+
+	{ id="server", name="Серверная (доход x1.5)", en="Server Room (x1.5 income)", cost=15000, income=0, needs="toprow",
+	  kind="room", rect={-60, 20, -31, 35}, doors={{"N", -35, 5}}, skip={W=true, S=true, E=true}, extra="servers",
+	  floor=Color3.fromRGB(40, 45, 55), btn={-35, 16} },
+
+	{ id="champ",  name="Зал для чемпионатов", en="Championship Room", cost=22000, income=10, needs="server",
+	  kind="room", rect={12, -20, 45, 0}, doors={{"W", -10, 4}}, skip={S=true}, floor=Color3.fromRGB(40, 55, 110), btn={7, -10} },
+	{ id="champ1", name="Турнирный ряд 1", en="Tournament Row 1", cost=30000, income=60, needs="champ", kind="pcs",
+	  pcs={{16.5,-13},{23,-13},{29.5,-13},{36,-13},{42.5,-13}}, rot=0, btn={29.5, -17.5} },
+	{ id="champ2", name="Турнирный ряд 2", en="Tournament Row 2", cost=40000, income=80, needs="champ1", kind="pcs",
+	  pcs={{16.5,-4},{23,-4},{29.5,-4},{36,-4},{42.5,-4}}, rot=0, btn={29.5, -8.5} },
+
+	{ id="stream", name="Стримерская", en="Streamer Room", cost=60000, income=120, needs="champ2",
+	  kind="room", rect={-60, 3, -40, 20}, doors={{"E", 12, 4}}, skip={W=true, S=true}, extra="stream",
+	  floor=Color3.fromRGB(60, 30, 70), btn={-36, 12} },
+	{ id="console", name="Комната PlayStation", en="PlayStation Room", cost=90000, income=160, needs="stream",
+	  kind="room", rect={-60, -35, -40, -14}, doors={{"E", -24, 4}}, skip={W=true, N=true}, extra="console",
+	  floor=Color3.fromRGB(30, 50, 90), btn={-36, -24} },
+	{ id="vip", name="VIP SOLO", en="VIP SOLO", cost=130000, income=250, needs="console",
+	  kind="room", rect={-60, -14, -40, 3}, doors={{"E", -5, 4}}, skip={W=true, N=true, S=true}, extra="vip",
+	  floor=Color3.fromRGB(90, 70, 20), btn={-36, -5} },
+	{ id="stage", name="Сцена с фото владельца", en="Stage & Owner Photo", cost=180000, income=350, needs="vip",
+	  kind="stage", btn={-5, -21} },
 }
 
 local ITEM_BY_ID = {}
@@ -141,10 +194,32 @@ local function makePart(props)
 	local part = Instance.new("Part")
 	part.Anchored = true
 	part.Material = Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
 	for key, value in pairs(props) do
 		part[key] = value
 	end
 	return part
+end
+
+-- точка на плане (в клетках) -> CFrame на участке; y — в студах
+local function at(origin, x, y, z)
+	return origin * CFrame.new(x * S, y, z * S)
+end
+
+-- коробка: size в студах, позиция на плане
+local function box(parent, origin, size, x, y, z, color, material, extra)
+	local props = {
+		Size = size,
+		CFrame = at(origin, x, y, z),
+		Color = color,
+		Material = material or Enum.Material.SmoothPlastic,
+		Parent = parent,
+	}
+	if extra then
+		for k, v in pairs(extra) do props[k] = v end
+	end
+	return makePart(props)
 end
 
 -- Красиво пишет большие числа: 15400 -> "15.4K"
@@ -176,19 +251,27 @@ local TEXT = {
 		free      = "БЕСПЛАТНО",
 		freePlot  = "СВОБОДНЫЙ УЧАСТОК",
 		club      = "КЛУБ · %s",
-		machine   = "МОНЕТНЫЙ АППАРАТ\nжми E!",
-		machineOn = "МОНЕТНЫЙ АППАРАТ\n+%s/сек · жми E!",
-		action    = "Добыть монеты",
-		object    = "Аппарат",
+		machine   = "БАНКОМАТ\nжми E!",
+		machineOn = "БАНКОМАТ\n+%s/сек · жми E!",
+		action    = "Получить монеты",
+		object    = "Банкомат",
+		locked    = "🔒 %s\n%s",
+		soon      = "🔒 СКОРО",
+		secret    = "???",
+		poster    = "ФОТО ВЛАДЕЛЬЦА\nскоро",
 	},
 	en = {
 		free      = "FREE",
 		freePlot  = "FREE PLOT",
 		club      = "%s'S CLUB",
-		machine   = "COIN MACHINE\npress E!",
-		machineOn = "COIN MACHINE\n+%s/sec · press E!",
-		action    = "Mine coins",
-		object    = "Machine",
+		machine   = "ATM\npress E!",
+		machineOn = "ATM\n+%s/sec · press E!",
+		action    = "Get coins",
+		object    = "ATM",
+		locked    = "🔒 %s\n%s",
+		soon      = "🔒 COMING SOON",
+		secret    = "???",
+		poster    = "OWNER PHOTO\ncoming soon",
 	},
 }
 
@@ -233,12 +316,12 @@ local function playSound(soundId, parent, volume)
 	end)
 end
 
-local function addLabel(part, text, color, size)
+local function addLabel(part, text, color, offsetY)
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.new(0, 220, 0, 60)
-	gui.StudsOffset = Vector3.new(0, (part.Size.Y / 2) + 2, 0)
+	gui.StudsOffset = Vector3.new(0, offsetY or ((part.Size.Y / 2) + 2), 0)
 	gui.AlwaysOnTop = true
-	gui.MaxDistance = 140
+	gui.MaxDistance = 90
 	gui.Parent = part
 
 	local label = Instance.new("TextLabel")
@@ -246,8 +329,7 @@ local function addLabel(part, text, color, size)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
-	label.TextScaled = size ~= "small"
-	label.TextSize = 16
+	label.TextScaled = true
 	label.Text = text
 	label.TextColor3 = color or Color3.new(1, 1, 1)
 	label.TextStrokeTransparency = 0.4
@@ -256,304 +338,318 @@ local function addLabel(part, text, color, size)
 	return label
 end
 
---=========================================================================
--- 5. СТРОИТЕЛИ ОБЪЕКТОВ
---=========================================================================
-
-local builders = {}
-
--- Компьютерный стол: столешница + монитор + системник + кресло
-function builders.desk(item, origin)
-	local model = Instance.new("Model")
-	model.Name = item.id
-
-	local table_ = makePart({
-		Size = Vector3.new(9, 0.6, 4),
-		CFrame = origin * CFrame.new(0, 3.2, 0),
-		Color = Color3.fromRGB(45, 45, 55),
-		Parent = model,
-	})
-
-	makePart({
-		Size = Vector3.new(0.8, 3.2, 0.8),
-		CFrame = origin * CFrame.new(0, 1.6, 0),
-		Color = Color3.fromRGB(35, 35, 40),
-		Parent = model,
-	})
-
-	makePart({ -- монитор
-		Size = Vector3.new(6, 3.4, 0.4),
-		CFrame = origin * CFrame.new(0, 5.2, -1.2),
-		Color = item.color,
-		Material = Enum.Material.Neon,
-		Parent = model,
-	})
-
-	makePart({ -- системник
-		Size = Vector3.new(1.8, 2.8, 3),
-		CFrame = origin * CFrame.new(3.6, 1.4, 0),
-		Color = Color3.fromRGB(25, 25, 30),
-		Parent = model,
-	})
-
-	makePart({ -- ножка кресла
-		Size = Vector3.new(0.6, 1.5, 0.6),
-		CFrame = origin * CFrame.new(0, 0.75, 4),
-		Color = Color3.fromRGB(35, 35, 40),
-		Parent = model,
-	})
-	makePart({ -- сиденье
-		Size = Vector3.new(3, 0.8, 3),
-		CFrame = origin * CFrame.new(0, 1.9, 4),
-		Color = Color3.fromRGB(30, 30, 35),
-		Parent = model,
-	})
-	makePart({ -- спинка стоит на заднем краю сиденья
-		Size = Vector3.new(3, 4, 0.8),
-		CFrame = origin * CFrame.new(0, 4.3, 5.1),
-		Color = item.color,
-		Parent = model,
-	})
-
-	model.PrimaryPart = table_
-	return model
-end
-
--- Красивая модель из магазина. Если шаблона нет — строим по-старому.
-function builders.model(item, origin, lang)
-	local template = templates and templates:FindFirstChild(item.model)
-	if not template then
-		return builders[item.kind](item, origin, lang)
-	end
-
-	local model = template:Clone()
-	model.Name = item.id
-	model:PivotTo(origin * CFrame.Angles(0, math.rad(item.rot or 0), 0))
-
-	if item.backing then -- висит на тёмной панели на высоте 7 студов (кондиционер)
-		model:PivotTo(origin * CFrame.new(0, 7, 0))
-		local _, size = model:GetBoundingBox()
-		makePart({
-			Size = Vector3.new(size.X + 4, 16, 1),
-			CFrame = origin * CFrame.new(0, 8, -size.Z / 2 - 0.5),
-			Color = Color3.fromRGB(35, 30, 50),
-			Parent = model,
-		})
-	end
-
-	-- экраны мониторов светятся цветом предмета, над моделью — подсветка
-	for _, part in ipairs(model:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name == "Screen" then
-			part.Material = Enum.Material.Glass
-			part.Color = item.color:Lerp(Color3.new(1, 1, 1), 0.3)
-		end
-	end
-	local glow = Instance.new("PointLight")
-	glow.Color = item.color
-	glow.Range = 14
-	glow.Brightness = 1.2
-
-	model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
-	glow.Parent = model.PrimaryPart
-	return model
-end
-
--- Простая коробка: автомат, ресепшн, кондиционер
-function builders.box(item, origin)
-	local model = Instance.new("Model")
-	model.Name = item.id
-
-	local size = item.size or Vector3.new(6, 6, 4)
-	local part = makePart({
-		Size = size,
-		CFrame = origin * CFrame.new(0, size.Y / 2, 0),
-		Color = item.color,
-		Parent = model,
-	})
-
-	makePart({ -- светящаяся полоска, чтобы не выглядело скучно
-		Size = Vector3.new(size.X * 0.7, 0.4, size.Z + 0.1),
-		CFrame = origin * CFrame.new(0, size.Y * 0.75, 0),
-		Color = Color3.fromRGB(255, 255, 255),
-		Material = Enum.Material.Neon,
-		Parent = model,
-	})
-
-	model.PrimaryPart = part
-	return model
-end
-
--- Зона на полу: ковёр с подсветкой и подписью
-function builders.zone(item, origin, lang)
-	local model = Instance.new("Model")
-	model.Name = item.id
-
-	local size = item.size or Vector3.new(16, 1, 16)
-	local pad = makePart({
-		Size = size,
-		CFrame = origin * CFrame.new(0, size.Y / 2, 0),
-		Color = item.color:Lerp(Color3.new(0, 0, 0), 0.35),
-		Material = Enum.Material.SmoothPlastic,
-		Parent = model,
-	})
-
-	-- светящаяся рамка по краю зоны
-	for _, edge in ipairs({
-		{ Vector3.new(size.X, 0.25, 0.4), CFrame.new(0, size.Y, -size.Z / 2) },
-		{ Vector3.new(size.X, 0.25, 0.4), CFrame.new(0, size.Y,  size.Z / 2) },
-		{ Vector3.new(0.4, 0.25, size.Z), CFrame.new(-size.X / 2, size.Y, 0) },
-		{ Vector3.new(0.4, 0.25, size.Z), CFrame.new( size.X / 2, size.Y, 0) },
-	}) do
-		makePart({
-			Size = edge[1],
-			CFrame = origin * edge[2],
-			Color = item.color,
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = false,
-			Parent = model,
-		})
-	end
-
-	addLabel(pad, itemName(item, lang), item.color)
-
-	local light = Instance.new("PointLight")
-	light.Color = item.color
-	light.Range = 18
-	light.Brightness = 1.5
-	light.Parent = pad
-
-	-- кресла в ряд на зоне
-	local chair = templates and templates:FindFirstChild("chair")
-	if chair and item.chairs then
-		local step = size.X / item.chairs
-		for i = 1, item.chairs do
-			local c = chair:Clone()
-			c:PivotTo(origin * CFrame.new(-size.X / 2 + step * (i - 0.5), size.Y, 0))
-			c.Parent = model
-		end
-	end
-
-	model.PrimaryPart = pad
-	return model
-end
-
--- Неоновая вывеска над входом
-function builders.sign(item, origin)
-	local model = Instance.new("Model")
-	model.Name = item.id
-
-	local board = makePart({
-		Size = Vector3.new(34, 8, 1),
-		CFrame = origin,
-		Color = Color3.fromRGB(20, 20, 30),
-		Parent = model,
-	})
-
+-- надпись на плоскости (вывеска на стене)
+local function addSign(part, face, text, color)
 	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Front
-	gui.AlwaysOnTop = false
-	gui.Parent = board
-
+	gui.Face = face
+	gui.Parent = part
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBlack
 	label.TextScaled = true
-	label.Text = "CYBER CLUB"
-	label.TextColor3 = Color3.fromRGB(0, 255, 200)
+	label.Text = text
+	label.TextColor3 = color
 	label.Parent = gui
+	return label
+end
 
-	model.PrimaryPart = board
+--=========================================================================
+-- 5. СТРОИТЕЛИ
+--=========================================================================
+
+local WALL_COLOR  = Color3.fromRGB(85, 75, 110)
+local INNER_COLOR = Color3.fromRGB(110, 100, 135)
+
+-- Стены прямоугольника с проёмами-дверями.
+-- rect = {x1, z1, x2, z2} (клетки), doors = {{"N"/"S"/"W"/"E", где, ширина}}
+-- skip = {N=true,...} — сторону не строить (там уже есть другая стена)
+local function buildWalls(parent, origin, rect, doors, skip, height, color)
+	local x1, z1, x2, z2 = rect[1], rect[2], rect[3], rect[4]
+	skip = skip or {}
+	local sides = {
+		N = { horizontal = true,  fixed = z1, from = x1, to = x2 },
+		S = { horizontal = true,  fixed = z2, from = x1, to = x2 },
+		W = { horizontal = false, fixed = x1, from = z1, to = z2 },
+		E = { horizontal = false, fixed = x2, from = z1, to = z2 },
+	}
+	for name, side in pairs(sides) do
+		if not skip[name] then
+			-- собираем проёмы на этой стороне
+			local gaps = {}
+			for _, door in ipairs(doors or {}) do
+				if door[1] == name then
+					table.insert(gaps, { door[2] - door[3] / 2, door[2] + door[3] / 2 })
+				end
+			end
+			table.sort(gaps, function(a, b) return a[1] < b[1] end)
+
+			local cursor = side.from
+			local segments = {}
+			for _, gap in ipairs(gaps) do
+				if gap[1] > cursor then table.insert(segments, { cursor, gap[1] }) end
+				cursor = math.max(cursor, gap[2])
+			end
+			if side.to > cursor then table.insert(segments, { cursor, side.to }) end
+
+			for _, seg in ipairs(segments) do
+				local mid = (seg[1] + seg[2]) / 2
+				local len = (seg[2] - seg[1]) * S
+				if side.horizontal then
+					box(parent, origin, Vector3.new(len, height, 1), mid, height / 2, side.fixed, color)
+				else
+					box(parent, origin, Vector3.new(1, height, len), side.fixed, height / 2, mid, color)
+				end
+			end
+		end
+	end
+end
+
+local function cloneTemplate(name, scale)
+	local template = templates and templates:FindFirstChild(name)
+	if not template then return nil end
+	local model = template:Clone()
+	if scale and scale ~= 1 then
+		model:ScaleTo(scale)
+	end
 	return model
 end
 
--- Стены и крыша вокруг всего участка
-function builders.walls(item, origin)
-	local model = Instance.new("Model")
-	model.Name = item.id
+local function sofa(parent, origin, x, z, rot, color)
+	local base = at(origin, x, 0, z) * CFrame.Angles(0, math.rad(rot or 0), 0)
+	local function piece(size, offset)
+		makePart({ Size = size, CFrame = base * offset, Color = color, Material = Enum.Material.Fabric, Parent = parent })
+	end
+	piece(Vector3.new(9, 1.6, 3.4), CFrame.new(0, 1, 0))          -- сиденье
+	piece(Vector3.new(9, 2.6, 0.9), CFrame.new(0, 2.8, 1.3))      -- спинка
+	piece(Vector3.new(0.9, 2.2, 3.4), CFrame.new(-4.5, 2, 0))     -- подлокотник
+	piece(Vector3.new(0.9, 2.2, 3.4), CFrame.new( 4.5, 2, 0))
+end
 
-	local half = CONFIG.PLOT_SIZE / 2
-	local height = 24
-	local color = Color3.fromRGB(85, 75, 110)
+local function tv(parent, origin, x, y, z, rot, width)
+	local cf = at(origin, x, y, z) * CFrame.Angles(0, math.rad(rot or 0), 0)
+	makePart({ Size = Vector3.new(width, width * 0.58, 0.5), CFrame = cf, Color = Color3.fromRGB(20, 20, 25), Parent = parent })
+	makePart({ -- экран
+		Size = Vector3.new(width - 0.5, width * 0.58 - 0.5, 0.1),
+		CFrame = cf * CFrame.new(0, 0, -0.3),
+		Color = Color3.fromRGB(90, 150, 230),
+		Material = Enum.Material.Glass,
+		Parent = parent,
+	})
+end
 
-	local sides = {
-		{ Vector3.new(CONFIG.PLOT_SIZE, height, 2), CFrame.new(0, height / 2, -half) },
-		{ Vector3.new(CONFIG.PLOT_SIZE, height, 2), CFrame.new(0, height / 2,  half) },
-		{ Vector3.new(2, height, CONFIG.PLOT_SIZE), CFrame.new(-half, height / 2, 0) },
-		{ Vector3.new(2, height, CONFIG.PLOT_SIZE), CFrame.new( half, height / 2, 0) },
+local builders = {}
+
+-- Запасной компьютерный стол из кубиков (если шаблона "pc" нет)
+local function simpleDesk(parent, cf, color)
+	makePart({ Size = Vector3.new(6, 0.5, 3), CFrame = cf * CFrame.new(0, 3, 0), Color = Color3.fromRGB(45, 45, 55), Parent = parent })
+	makePart({ Size = Vector3.new(0.6, 3, 0.6), CFrame = cf * CFrame.new(0, 1.5, 0), Color = Color3.fromRGB(35, 35, 40), Parent = parent })
+	makePart({ Size = Vector3.new(4, 2.4, 0.3), CFrame = cf * CFrame.new(0, 4.6, -1), Color = color, Material = Enum.Material.Glass, Parent = parent })
+	makePart({ Size = Vector3.new(2.4, 0.6, 2.4), CFrame = cf * CFrame.new(0, 1.6, 3), Color = Color3.fromRGB(30, 30, 35), Parent = parent })
+end
+
+-- Компьютеры: один или целый ряд
+function builders.pcs(item, origin, model)
+	local color = item.color or Color3.fromRGB(200, 60, 80)
+	for _, p in ipairs(item.pcs) do
+		local cf = at(origin, p[1], 0, p[2]) * CFrame.Angles(0, math.rad(item.rot or 0), 0)
+		local pc = cloneTemplate("pc", CONFIG.PC_SCALE)
+		if pc then
+			pc:PivotTo(cf)
+			for _, part in ipairs(pc:GetDescendants()) do
+				if part:IsA("BasePart") and part.Name == "Screen" then
+					part.Material = Enum.Material.Glass
+					part.Color = color:Lerp(Color3.new(1, 1, 1), 0.3)
+				end
+			end
+			pc.Parent = model
+		else
+			simpleDesk(model, cf, color)
+		end
+	end
+end
+
+-- Модель из магазина (ресепшн, автомат...)
+function builders.model(item, origin, model)
+	local cf = at(origin, item.pos[1], 0, item.pos[2]) * CFrame.Angles(0, math.rad(item.rot or 0), 0)
+	local m = cloneTemplate(item.model, item.scale)
+	if m then
+		m:PivotTo(cf)
+		m.Parent = model
+	else
+		makePart({ Size = Vector3.new(6, 4, 3), CFrame = cf * CFrame.new(0, 2, 0), Color = Color3.fromRGB(60, 120, 200), Parent = model })
+	end
+end
+
+-- Стены всего клуба + закрытые двери «на будущее» + граффити
+function builders.outer(item, origin, model, lang)
+	local H = CONFIG.WALL_HEIGHT
+	local doors = {
+		{ "S", 0, 10 },     -- вход
+		{ "N", 8, 4 },      -- тайная дверь
+		{ "W", -5, 4 },     -- дверь из VIP SOLO (дальше — второй этаж)
+		{ "E", -24, 4 }, { "E", -8, 4 }, { "E", 20, 4 },   -- комнаты справа (потом)
 	}
+	buildWalls(model, origin, { -60, -35, 60, 35 }, doors, nil, H, WALL_COLOR)
 
-	local first
-	for _, side in ipairs(sides) do
-		local wall = makePart({
-			Size = side[1],
-			CFrame = origin * side[2],
-			Color = color,
-			Parent = model,
-		})
-		first = first or wall
+	-- закрытые двери
+	local function lockedDoor(x, z, alongX, text, color)
+		local size = alongX and Vector3.new(4 * S, 9, 0.6) or Vector3.new(0.6, 9, 4 * S)
+		local door = box(model, origin, size, x, 4.5, z, color, Enum.Material.Wood)
+		addLabel(door, text, Color3.fromRGB(255, 230, 150), 6)
+	end
+	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25))
+	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30))
+	for _, z in ipairs({ -24, -8, 20 }) do
+		lockedDoor(60, z, false, T(lang, "soon"), Color3.fromRGB(70, 60, 80))
 	end
 
-	-- граффити: панели на внутренней стороне стен
+	-- граффити на внутренней стороне стен
 	local graffiti = {}
 	if templates then
 		for _, child in ipairs(templates:GetChildren()) do
 			if child:IsA("Decal") then table.insert(graffiti, child) end
 		end
 	end
-	if #graffiti > 0 then
-		local spots = {
-			CFrame.new(-20, 10, -half + 1.2),
-			CFrame.new( 20, 10, -half + 1.2),
-			CFrame.new(-half + 1.2, 10, -10) * CFrame.Angles(0, math.rad(90), 0),
-			CFrame.new( half - 1.2, 10,  10) * CFrame.Angles(0, math.rad(-90), 0),
-			CFrame.new(-half + 1.2, 10,  22) * CFrame.Angles(0, math.rad(90), 0),
-		}
-		for i, spot in ipairs(spots) do
-			local panel = makePart({
-				Size = Vector3.new(16, 12, 0.2),
-				CFrame = origin * spot,
-				Transparency = 1,
-				CanCollide = false,
-				Parent = model,
-			})
-			local decal = graffiti[(i - 1) % #graffiti + 1]:Clone()
-			decal.Face = Enum.NormalId.Back
-			decal.Parent = panel
+	local spots = {
+		{ 32, -34.4, 0 },    -- верхняя стена, над рядом из 6 ПК
+		{ 59.4, 6, -90 },    -- правая стена
+		{ 30, 34.4, 180 },   -- нижняя стена, у общего зала
+		{ -12, 34.4, 180 },  -- нижняя стена, у админа
+	}
+	for i, spot in ipairs(spots) do
+		if #graffiti == 0 then break end
+		local panel = makePart({
+			Size = Vector3.new(16, 10, 0.2),
+			CFrame = at(origin, spot[1], 8.5, spot[2]) * CFrame.Angles(0, math.rad(spot[3]), 0),
+			Transparency = 1,
+			CanCollide = false,
+			Parent = model,
+		})
+		local decal = graffiti[(i - 1) % #graffiti + 1]:Clone()
+		decal.Face = Enum.NormalId.Back
+		decal.Parent = panel
+	end
+end
+
+-- Комната: пол своего цвета + стены с дверью + начинка
+function builders.room(item, origin, model, lang)
+	local r = item.rect
+	local w, d = (r[3] - r[1]) * S, (r[4] - r[2]) * S
+	box(model, origin, Vector3.new(w, 0.2, d), (r[1] + r[3]) / 2, 0.1, (r[2] + r[4]) / 2,
+		item.floor or Color3.fromRGB(80, 70, 100), Enum.Material.SmoothPlastic, { CanCollide = false })
+	buildWalls(model, origin, r, item.doors, item.skip, CONFIG.WALL_HEIGHT - 2, INNER_COLOR)
+	if item.extra and builders[item.extra] then
+		builders[item.extra](item, origin, model, lang)
+	end
+end
+
+function builders.toilet(item, origin, model)
+	local white = Color3.fromRGB(240, 240, 245)
+	box(model, origin, Vector3.new(2.4, 1.6, 3), -28, 0.8, 31, white)            -- унитаз
+	box(model, origin, Vector3.new(2.6, 2.2, 0.8), -28, 2.2, 32.8, white)        -- бачок
+	box(model, origin, Vector3.new(3, 0.6, 2), -22, 3, 33.5, white)              -- раковина
+	box(model, origin, Vector3.new(0.6, 3, 0.6), -22, 1.5, 33.5, white)
+	box(model, origin, Vector3.new(3, 3.5, 0.2), -22, 6, 34.3,
+		Color3.fromRGB(200, 230, 255), Enum.Material.Glass)                     -- зеркало
+	box(model, origin, Vector3.new(0.3, 8, 5), -25, 4, 31, Color3.fromRGB(150, 160, 175)) -- перегородка
+end
+
+function builders.servers(item, origin, model, lang)
+	for i = 0, 3 do
+		local x = -56 + i * 5.5
+		local rack = box(model, origin, Vector3.new(4, 9, 4), x, 4.5, 31, Color3.fromRGB(25, 25, 30), Enum.Material.Metal)
+		for j = 0, 5 do
+			box(model, origin, Vector3.new(3, 0.25, 0.1), x, 1.5 + j * 1.2, 31 - 1.4,
+				j % 2 == 0 and Color3.fromRGB(80, 255, 120) or Color3.fromRGB(80, 170, 255), Enum.Material.Neon)
+		end
+		if i == 0 then
+			addLabel(rack, lang == "ru" and "ДОХОД x1.5" or "INCOME x1.5", Color3.fromRGB(120, 255, 160))
 		end
 	end
+end
 
-	makePart({ -- крыша
-		Size = Vector3.new(CONFIG.PLOT_SIZE, 2, CONFIG.PLOT_SIZE),
-		CFrame = origin * CFrame.new(0, height, 0),
-		Color = Color3.fromRGB(40, 40, 55),
-		Transparency = 0.35,
-		Parent = model,
-	})
+function builders.stream(item, origin, model)
+	builders.pcs({ pcs = { { -50, 8 } }, rot = 0, color = Color3.fromRGB(180, 80, 255) }, origin, model)
+	-- кольцевая лампа
+	local ring = box(model, origin, Vector3.new(0.4, 3.2, 3.2), -44.5, 6, 8, Color3.fromRGB(255, 250, 240), Enum.Material.Neon, { Shape = Enum.PartType.Cylinder })
+	ring.CFrame = ring.CFrame * CFrame.Angles(0, math.rad(90), 0)
+	box(model, origin, Vector3.new(0.3, 5, 0.3), -44.5, 2.5, 8, Color3.fromRGB(30, 30, 30))
+	-- вывеска ON AIR
+	local sign = box(model, origin, Vector3.new(7, 2, 0.3), -50, 9, 3.6, Color3.fromRGB(40, 10, 10))
+	addSign(sign, Enum.NormalId.Back, "● ON AIR", Color3.fromRGB(255, 60, 60))
+end
 
-	-- лампы под потолком
-	for _, x in ipairs({ -22, 22 }) do
-		for _, z in ipairs({ -22, 22 }) do
-			local lamp = makePart({
-				Size = Vector3.new(8, 0.4, 8),
-				CFrame = origin * CFrame.new(x, height - 1.3, z),
-				Color = Color3.fromRGB(245, 240, 255),
-				Material = Enum.Material.Glass,
-				CanCollide = false,
-				Parent = model,
-			})
-			local light = Instance.new("SpotLight")
-			light.Face = Enum.NormalId.Bottom
-			light.Range = 40
-			light.Angle = 120
-			light.Brightness = 2
-			light.Color = Color3.fromRGB(230, 215, 255)
-			light.Parent = lamp
+function builders.console(item, origin, model)
+	tv(model, origin, -50, 6, -34.3, 180, 12)
+	box(model, origin, Vector3.new(8, 1.4, 2), -50, 0.7, -33.2, Color3.fromRGB(30, 30, 35))   -- тумба
+	box(model, origin, Vector3.new(2.2, 0.6, 1.6), -50, 1.7, -33.2, Color3.fromRGB(245, 245, 250)) -- приставка
+	sofa(model, origin, -50, -22, 0, Color3.fromRGB(40, 60, 120))
+end
+
+function builders.vip(item, origin, model)
+	box(model, origin, Vector3.new(14, 0.1, 12), -50, 0.25, -6, Color3.fromRGB(150, 20, 40), Enum.Material.Fabric)
+	builders.pcs({ pcs = { { -50, -9 } }, rot = 0, color = Color3.fromRGB(255, 200, 60) }, origin, model)
+	local plate = box(model, origin, Vector3.new(8, 2, 0.3), -50, 9, -13.4, Color3.fromRGB(30, 25, 10))
+	addSign(plate, Enum.NormalId.Back, "VIP SOLO", Color3.fromRGB(255, 210, 80))
+end
+
+-- Лаунж: диван, столик, телевизор и кресло
+function builders.lounge(item, origin, model)
+	sofa(model, origin, 0, 14, 90, Color3.fromRGB(70, 50, 110))
+	box(model, origin, Vector3.new(3, 1.6, 7), 5.5, 0.8, 14, Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
+	tv(model, origin, 10.5, 5, 14, -90, 10)
+	box(model, origin, Vector3.new(1, 3.5, 1), 10.5, 1.75, 14, Color3.fromRGB(30, 30, 35))
+	local chair = cloneTemplate("chair")
+	if chair then
+		chair:PivotTo(at(origin, 5.5, 0, 3) * CFrame.Angles(0, math.rad(180), 0))
+		chair.Parent = model
+	end
+end
+
+-- Диван и стулья возле сцены
+function builders.sofaset(item, origin, model)
+	sofa(model, origin, -2, -17, 180, Color3.fromRGB(110, 40, 60))
+	local chair = cloneTemplate("chair")
+	for i = 0, 2 do
+		local x = -6 + i * 4
+		if chair then
+			local c = chair:Clone()
+			c:PivotTo(at(origin, x, 0, -12.5))
+			c.Parent = model
 		end
 	end
+end
 
-	model.PrimaryPart = first
-	return model
+-- Сцена с фотографией владельца
+function builders.stage(item, origin, model, lang)
+	box(model, origin, Vector3.new(16 * S, 1.5, 10 * S), -5, 0.75, -30, Color3.fromRGB(40, 35, 60), Enum.Material.Wood)
+	box(model, origin, Vector3.new(16 * S, 0.3, 0.4), -5, 1.6, -25, Color3.fromRGB(255, 200, 80), Enum.Material.Neon)
+	local frame = box(model, origin, Vector3.new(12, 9, 0.5), -5, 7.5, -34.3, Color3.fromRGB(20, 20, 25))
+	if CONFIG.POSTER_IMAGE ~= "" then
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Back
+		gui.Parent = frame
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.fromScale(1, 1)
+		img.BackgroundTransparency = 1
+		img.Image = CONFIG.POSTER_IMAGE
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Parent = gui
+	else
+		addSign(frame, Enum.NormalId.Back, T(lang, "poster"), Color3.fromRGB(255, 220, 150))
+	end
+	-- прожекторы
+	for _, x in ipairs({ -11, 1 }) do
+		local lamp = box(model, origin, Vector3.new(1.5, 1.5, 1.5), x, 12, -26, Color3.fromRGB(30, 30, 30), Enum.Material.Metal)
+		local spot = Instance.new("SpotLight")
+		spot.Face = Enum.NormalId.Bottom
+		spot.Angle = 70
+		spot.Range = 20
+		spot.Brightness = 3
+		spot.Color = Color3.fromRGB(255, 220, 180)
+		spot.Parent = lamp
+	end
 end
 
 --=========================================================================
@@ -567,21 +663,9 @@ plotsFolder.Parent = workspace
 local plots = {}          -- список всех участков
 local plotByPlayer = {}   -- игрок -> участок
 
--- Где стоит кнопка покупки: чуть ближе к центру, чем сам объект
-local function buttonPosition(item)
-	if item.btn then
-		return item.btn
-	end
-	local flat = Vector3.new(item.pos.X, 0, item.pos.Z)
-	if flat.Magnitude < 1 then
-		return Vector3.new(0, 0, 12)
-	end
-	return flat - flat.Unit * 9
-end
-
 local function createPlot(index)
 	local origin = CFrame.new(
-		(index - 1) * (CONFIG.PLOT_SIZE + CONFIG.PLOT_GAP),
+		(index - 1) * (CONFIG.PLOT_WIDTH + CONFIG.PLOT_GAP),
 		CONFIG.PLOT_HEIGHT,
 		0
 	)
@@ -593,7 +677,7 @@ local function createPlot(index)
 	-- пол
 	local floor = makePart({
 		Name = "Пол",
-		Size = Vector3.new(CONFIG.PLOT_SIZE, 2, CONFIG.PLOT_SIZE),
+		Size = Vector3.new(CONFIG.PLOT_WIDTH, 2, CONFIG.PLOT_DEPTH),
 		CFrame = origin * CFrame.new(0, -1, 0),
 		Color = Color3.fromRGB(110, 100, 130),
 		Material = Enum.Material.Carpet,
@@ -604,70 +688,32 @@ local function createPlot(index)
 	end
 	model.PrimaryPart = floor
 
-	-- неоновая кайма по краю участка
-	local half = CONFIG.PLOT_SIZE / 2
+	-- контур будущего клуба на полу, чтобы было видно, где строим
 	for _, edge in ipairs({
-		{ Vector3.new(CONFIG.PLOT_SIZE, 0.3, 0.6), CFrame.new(0, 0.15, -half + 0.3) },
-		{ Vector3.new(CONFIG.PLOT_SIZE, 0.3, 0.6), CFrame.new(0, 0.15,  half - 0.3) },
-		{ Vector3.new(0.6, 0.3, CONFIG.PLOT_SIZE), CFrame.new(-half + 0.3, 0.15, 0) },
-		{ Vector3.new(0.6, 0.3, CONFIG.PLOT_SIZE), CFrame.new( half - 0.3, 0.15, 0) },
+		{ Vector3.new(120 * S, 0.2, 0.6), 0, -35 }, { Vector3.new(120 * S, 0.2, 0.6), 0, 35 },
+		{ Vector3.new(0.6, 0.2, 70 * S), -60, 0 },  { Vector3.new(0.6, 0.2, 70 * S), 60, 0 },
 	}) do
-		makePart({
-			Name = "Кайма",
-			Size = edge[1],
-			CFrame = origin * edge[2],
-			Color = Color3.fromRGB(170, 60, 255),
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = false,
-			Parent = model,
-		})
+		box(model, origin, edge[1], edge[2], 0.1, edge[3], Color3.fromRGB(170, 120, 255), nil, { CanCollide = false })
 	end
 
-	-- точка появления игрока
-	local spawnPad = makePart({
-		Name = "Спавн",
-		Size = Vector3.new(10, 1, 10),
-		CFrame = origin * CFrame.new(0, 0.5, 40),
-		Color = Color3.fromRGB(80, 200, 120),
-		Material = Enum.Material.SmoothPlastic,
-		Parent = model,
-	})
-
-	local spawnLight = Instance.new("PointLight")
-	spawnLight.Color = Color3.fromRGB(80, 255, 140)
-	spawnLight.Range = 16
-	spawnLight.Parent = spawnPad
+	-- точка появления: снаружи у входа
+	local spawnPad = box(model, origin, Vector3.new(10, 1, 8), 0, 0.5, 40, Color3.fromRGB(80, 200, 120))
+	spawnPad.Name = "Спавн"
 
 	-- табличка «свободно / клуб такого-то»
-	local pole = makePart({
-		Name = "Табличка",
-		Size = Vector3.new(1, 18, 1),
-		CFrame = origin * CFrame.new(-26, 9, 44),
-		Color = Color3.fromRGB(30, 30, 40),
-		Parent = model,
-	})
+	local pole = box(model, origin, Vector3.new(1, 18, 1), -12, 9, 42, Color3.fromRGB(30, 30, 40))
+	pole.Name = "Табличка"
 	local nameLabel = addLabel(pole, T("en", "freePlot"), Color3.fromRGB(150, 255, 150))
 
-	-- монетный аппарат: выбрасывает монеты на площадку перед собой
-	local machine = makePart({
-		Name = "Аппарат",
-		Size = Vector3.new(7, 8, 3),
-		CFrame = origin * CFrame.new(18, 4, 42.5),
-		Color = Color3.fromRGB(240, 190, 50),
-		Material = Enum.Material.Metal,
-		Parent = model,
-	})
-	makePart({ -- светящийся «рот», откуда вылетают монеты
-		Size = Vector3.new(4, 1.2, 0.3),
-		CFrame = origin * CFrame.new(18, 2.5, 40.9),
-		Color = Color3.fromRGB(0, 255, 200),
-		Material = Enum.Material.Neon,
-		Parent = model,
-	})
+	-- банкомат (на месте кухни): выбрасывает монеты на площадку перед собой
+	local machine = box(model, origin, Vector3.new(6, 9, 3), -24, 4.5, -33, Color3.fromRGB(40, 60, 110), Enum.Material.Metal)
+	machine.Name = "Банкомат"
+	box(model, origin, Vector3.new(4, 2.5, 0.2), -24, 6.2, -33 + 1.6 / S, Color3.fromRGB(120, 220, 255), Enum.Material.Glass)
+	box(model, origin, Vector3.new(3.5, 0.6, 0.3), -24, 2.8, -33 + 1.6 / S, Color3.fromRGB(0, 255, 200), Enum.Material.Neon)
+
 	local machineLight = Instance.new("PointLight")
-	machineLight.Color = Color3.fromRGB(255, 210, 80)
-	machineLight.Range = 20
-	machineLight.Brightness = 2
+	machineLight.Color = Color3.fromRGB(120, 220, 255)
+	machineLight.Range = 16
 	machineLight.Parent = machine
 
 	local safeLabel = addLabel(machine, T("en", "machine"), Color3.fromRGB(255, 240, 150))
@@ -682,19 +728,27 @@ local function createPlot(index)
 	prompt.Parent = machine
 
 	-- площадка, куда падают монеты
-	local coinPad = makePart({
-		Name = "ПлощадкаМонет",
-		Size = Vector3.new(12, 0.2, 9),
-		CFrame = origin * CFrame.new(18, 0.1, 35),
-		Color = Color3.fromRGB(90, 70, 20),
-		Material = Enum.Material.Metal,
-		CanCollide = false,
-		Parent = model,
-	})
+	local coinPad = box(model, origin, Vector3.new(16, 0.2, 10), -24, 0.1, -25, Color3.fromRGB(90, 70, 20), Enum.Material.Metal, { CanCollide = false })
+	coinPad.Name = "ПлощадкаМонет"
 
 	local coinFolder = Instance.new("Folder")
 	coinFolder.Name = "Монеты"
 	coinFolder.Parent = model
+
+	-- стрелка над следующей покупкой
+	local arrow = makePart({
+		Name = "Стрелка",
+		Size = Vector3.new(2, 2, 2),
+		Color = Color3.fromRGB(255, 220, 60),
+		Transparency = 1,
+		CanCollide = false,
+		Parent = model,
+	})
+	local arrowMesh = Instance.new("SpecialMesh")
+	arrowMesh.MeshType = Enum.MeshType.FileMesh
+	arrowMesh.MeshId = "rbxassetid://1033714"     -- конус
+	arrowMesh.Scale = Vector3.new(1.4, 2.4, 1.4)
+	arrowMesh.Parent = arrow
 
 	local plot = {
 		index      = index,
@@ -705,6 +759,7 @@ local function createPlot(index)
 		prompt     = prompt,
 		coinPad    = coinPad,
 		coinFolder = coinFolder,
+		arrow      = arrow,
 		lastClick  = 0,
 		lang       = "en",
 		safeLabel  = safeLabel,
@@ -713,6 +768,7 @@ local function createPlot(index)
 		owned      = {},   -- id -> true
 		built      = {},   -- id -> Model
 		buttons    = {},   -- id -> Part
+		ghosts     = {},   -- id -> Part (закрытые комнаты)
 		storage    = 0,
 		income     = 0,
 		multiplier = 1,
@@ -720,46 +776,69 @@ local function createPlot(index)
 
 	-- кнопки покупок
 	for _, item in ipairs(ITEMS) do
-		local offset = buttonPosition(item)
-		local button = makePart({
-			Name = "Кнопка_" .. item.id,
-			Size = Vector3.new(6, 1.2, 6),
-			CFrame = origin * CFrame.new(offset.X, 0.6, offset.Z),
-			Color = Color3.fromRGB(220, 60, 60),
-			Material = Enum.Material.SmoothPlastic,
-			Parent = model,
-		})
+		local button = box(model, origin, Vector3.new(6, 1.2, 6), item.btn[1], 0.6, item.btn[2], Color3.fromRGB(220, 60, 60))
+		button.Name = "Кнопка_" .. item.id
 		button:SetAttribute("ItemId", item.id)
 		addLabel(button, itemName(item, "en") .. "\n" .. priceText(item, "en"))
 		button.Transparency = 1
 		button.CanCollide = false
-		for _, child in ipairs(button:GetChildren()) do
-			if child:IsA("BillboardGui") then child.Enabled = false end
-		end
+		button:FindFirstChildWhichIsA("BillboardGui").Enabled = false
 		plot.buttons[item.id] = button
+
+		-- «призрак» закрытой комнаты: видно, что тут что-то будет
+		if item.kind == "room" then
+			local r = item.rect
+			local ghost = box(model, origin, Vector3.new((r[3] - r[1]) * S, 0.15, (r[4] - r[2]) * S),
+				(r[1] + r[3]) / 2, 0.08, (r[2] + r[4]) / 2, Color3.fromRGB(20, 15, 30), nil,
+				{ Transparency = 1, CanCollide = false })
+			addLabel(ghost, "", Color3.fromRGB(200, 190, 230), 3).Parent.Enabled = false
+			plot.ghosts[item.id] = ghost
+		end
 	end
+
+	-- стрелка качается вверх-вниз
+	TweenService:Create(arrowMesh, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Offset = Vector3.new(0, 1.5, 0) }):Play()
 
 	plots[index] = plot
 	return plot
 end
 
+local function isAvailable(plot, item)
+	return plot.owner ~= nil
+		and not plot.owned[item.id]
+		and (item.needs == nil or plot.owned[item.needs] == true)
+end
+
 -- Показывать нужно только те кнопки, которые уже доступны по цепочке
 local function refreshButtons(plot)
+	local next_ = nil
 	for _, item in ipairs(ITEMS) do
 		local button = plot.buttons[item.id]
-		local available =
-			plot.owner ~= nil
-			and not plot.owned[item.id]
-			and (item.needs == nil or plot.owned[item.needs] == true)
+		local available = isAvailable(plot, item)
+		if available and not next_ then next_ = button end
 
 		button.Transparency = available and 0 or 1
 		button.CanCollide = false
-		for _, child in ipairs(button:GetChildren()) do
-			if child:IsA("BillboardGui") then
-				child.Enabled = available
-				child.Text.Text = itemName(item, plot.lang) .. "\n" .. priceText(item, plot.lang)
-			end
+		local gui = button:FindFirstChildWhichIsA("BillboardGui")
+		gui.Enabled = available
+		gui.Text.Text = itemName(item, plot.lang) .. "\n" .. priceText(item, plot.lang)
+
+		local ghost = plot.ghosts[item.id]
+		if ghost then
+			local show = plot.owner ~= nil and not plot.owned[item.id]
+			ghost.Transparency = show and 0.6 or 1
+			local g = ghost:FindFirstChildWhichIsA("BillboardGui")
+			g.Enabled = show
+			g.Text.Text = T(plot.lang, "locked", itemName(item, plot.lang), priceText(item, plot.lang))
 		end
+	end
+
+	if next_ then
+		plot.arrow.CFrame = next_.CFrame * CFrame.new(0, 7, 0) * CFrame.Angles(math.rad(180), 0, 0)
+		plot.arrow.Transparency = 0
+	else
+		plot.arrow.Transparency = 1
 	end
 end
 
@@ -769,7 +848,8 @@ local function recalcIncome(plot)
 		local item = ITEM_BY_ID[id]
 		if item then total += item.income end
 	end
-	plot.income = total * plot.multiplier
+	local boost = plot.owned.server and CONFIG.SERVER_BOOST or 1
+	plot.income = math.floor(total * boost * plot.multiplier)
 
 	if plot.owner then
 		local stats = plot.owner:FindFirstChild("Stats")
@@ -780,13 +860,16 @@ end
 local function buildItem(plot, item, animate)
 	if plot.built[item.id] then return end
 
-	local origin = plot.origin * CFrame.new(item.pos)
-	local builder = (item.model and builders.model) or builders[item.kind] or builders.box
-	local model = builder(item, origin, plot.lang)
+	local model = Instance.new("Model")
+	model.Name = item.id
+	local builder = builders[item.kind]
+	if builder then
+		builder(item, plot.origin, model, plot.lang)
+	end
 	model.Parent = plot.model
 	plot.built[item.id] = model
 
-	if animate and model.PrimaryPart then
+	if animate then
 		for _, part in ipairs(model:GetDescendants()) do
 			if part:IsA("BasePart") then
 				local target = part.Transparency
@@ -807,6 +890,8 @@ local function clearPlot(plot)
 	plot.income = 0
 	plot.multiplier = 1
 	plot.coinFolder:ClearAllChildren()
+	local stats = plot.owner and plot.owner:FindFirstChild("Stats")
+	if stats then stats.Storage.Value = 0 end
 end
 
 --=========================================================================
@@ -817,8 +902,7 @@ local buyCooldown = {}   -- игрок -> время последней попы
 
 local function tryBuy(player, plot, item)
 	if plot.owner ~= player then return end
-	if plot.owned[item.id] then return end
-	if item.needs and not plot.owned[item.needs] then return end
+	if not isAvailable(plot, item) then return end
 
 	local now = os.clock()
 	if buyCooldown[player] and now - buyCooldown[player] < 0.35 then return end
@@ -894,7 +978,8 @@ local function dropCoin(plot, value)
 		Name = "Монета",
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(0.4, 1.6, 1.6),
-		CFrame = plot.machine.CFrame * CFrame.new(0, -1.5, -2) * CFrame.Angles(0, 0, math.rad(90)),
+		-- вылетает из щели банкомата в сторону площадки (+Z)
+		CFrame = plot.machine.CFrame * CFrame.new(0, -1.7, 2) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = Color3.fromRGB(255, 200, 40),
 		Material = Enum.Material.Metal,
 		Reflectance = 0.2,
@@ -928,7 +1013,7 @@ local function connectPlotTouches(plot)
 		end)
 	end
 
-	-- нажатие E у аппарата: бонусная монетка
+	-- нажатие E у банкомата: бонусная монетка
 	plot.prompt.Triggered:Connect(function(player)
 		if player ~= plot.owner then return end
 		local now = os.clock()
@@ -937,7 +1022,7 @@ local function connectPlotTouches(plot)
 
 		dropCoin(plot, math.max(1, plot.income * CONFIG.CLICK_BONUS))
 
-		-- аппарат «вздрагивает»
+		-- банкомат «вздрагивает»
 		local base = plot.machine.CFrame
 		plot.machine.CFrame = base * CFrame.new(0, 0.3, 0)
 		task.delay(0.08, function() plot.machine.CFrame = base end)
@@ -1017,13 +1102,28 @@ local function onPlayerAdded(player)
 	recalcIncome(plot)
 	refreshButtons(plot)
 
-	player.CharacterAdded:Connect(function(character)
+	local function placeCharacter(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		if root then
 			task.wait(0.1)
-			root.CFrame = plot.spawnPad.CFrame * CFrame.new(0, 4, 0)
+			root.CFrame = plot.spawnPad.CFrame * CFrame.new(0, 4, 0) * CFrame.Angles(0, math.rad(0), 0)
 		end
-	end)
+	end
+	-- Только в Studio: сброс прогресса для тестов.
+	-- В командной строке Studio: game.Players.ИМЯ:SetAttribute("DevReset", true)
+	if game:GetService("RunService"):IsStudio() then
+		player:GetAttributeChangedSignal("DevReset"):Connect(function()
+			if not player:GetAttribute("DevReset") then return end
+			player:SetAttribute("DevReset", false)
+			clearPlot(plot)
+			money.Value = CONFIG.START_MONEY
+			recalcIncome(plot)
+			refreshButtons(plot)
+		end)
+	end
+
+	player.CharacterAdded:Connect(placeCharacter)
+	if player.Character then task.spawn(placeCharacter, player.Character) end
 end
 
 local function collectData(player)
@@ -1056,7 +1156,7 @@ end
 -- 9. ЗАПУСК
 --=========================================================================
 
--- Атмосфера клуба: вечер, лёгкая дымка, неон светится ярче
+-- Атмосфера клуба: мягкий вечерний свет, лёгкая дымка
 local function setupAtmosphere()
 	Lighting.ClockTime = 16
 	Lighting.Brightness = 2.5
@@ -1104,7 +1204,7 @@ for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)
 end
 
--- раз в секунду аппарат сам выбрасывает монету размером с доход
+-- раз в секунду банкомат сам выбрасывает монету размером с доход
 task.spawn(function()
 	while true do
 		task.wait(1)

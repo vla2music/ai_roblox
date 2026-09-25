@@ -120,16 +120,16 @@ refresh()
 --=========================================================================
 
 local hint = Instance.new("TextLabel")
-hint.Size = UDim2.new(0, 460, 0, 40)
-hint.Position = UDim2.new(0.5, -230, 0, 120)
+hint.Size = UDim2.new(0, 560, 0, 60)
+hint.Position = UDim2.new(0.5, -280, 0, 120)
 hint.BackgroundTransparency = 1
 hint.Font = Enum.Font.GothamMedium
 hint.TextSize = 17
 hint.TextColor3 = Color3.fromRGB(255, 255, 255)
 hint.TextStrokeTransparency = 0.5
 hint.Text = isRu
-	and "Жми E у жёлтого аппарата и собирай монеты! Красные кнопки — покупки."
-	or "Press E at the yellow machine and grab the coins! Step on red buttons to buy."
+	and "Докажи, что построишь лучший киберклуб в городе!\nЖми E у банкомата, собирай монеты, иди за жёлтой стрелкой."
+	or "Build the #1 Cyber Club in town!\nPress E at the ATM, grab coins, follow the yellow arrow."
 hint.Parent = screen
 
 task.delay(14, function()
