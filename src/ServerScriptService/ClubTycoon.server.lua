@@ -70,6 +70,17 @@ local CONFIG = {
 	-- на create.roblox.com, например "rbxassetid://1234567890".
 	POSTER_VIDEO   = "",
 	POSTER_VIDEO_VOLUME = 0.5,
+	-- Бесплатная замена видео: «мультик» из кадров в одной картинке
+	-- (раскадровка 6x4, кадр 170x248) + отдельный звук.
+	POSTER_FLIPBOOK = {
+		image  = "",   -- ID картинки media/nazar_spritesheet.png
+		sound  = "",   -- ID звука media/nazar_sound.mp3
+		cols   = 6, rows = 4,
+		frameW = 170, frameH = 248,
+		length = 5.17,  -- секунд на весь ролик
+		pause  = 3,     -- пауза на последнем кадре перед повтором
+		volume = 0.5,
+	},
 
 	-- Банкомат: сам выбрасывает монетки на площадку,
 	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
@@ -647,6 +658,40 @@ function builders.stage(item, origin, model, lang)
 		video.Volume = CONFIG.POSTER_VIDEO_VOLUME
 		video.Parent = gui
 		video:Play()
+	elseif CONFIG.POSTER_FLIPBOOK.image ~= "" then
+		local fb = CONFIG.POSTER_FLIPBOOK
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Back
+		gui.Parent = frame
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.fromScale(1, 1)
+		img.BackgroundTransparency = 1
+		img.Image = fb.image
+		img.ImageRectSize = Vector2.new(fb.frameW, fb.frameH)
+		img.Parent = gui
+
+		local sound
+		if fb.sound ~= "" then
+			sound = Instance.new("Sound")
+			sound.SoundId = fb.sound
+			sound.Volume = fb.volume
+			sound.RollOffMaxDistance = 80
+			sound.Parent = frame
+		end
+
+		local total = fb.cols * fb.rows
+		local step = fb.length / total
+		task.spawn(function()
+			while frame.Parent do
+				if sound then sound:Play() end
+				for i = 0, total - 1 do
+					if not frame.Parent then return end
+					img.ImageRectOffset = Vector2.new((i % fb.cols) * fb.frameW, math.floor(i / fb.cols) * fb.frameH)
+					task.wait(step)
+				end
+				task.wait(fb.pause)
+			end
+		end)
 	elseif CONFIG.POSTER_IMAGE ~= "" then
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = Enum.NormalId.Back
