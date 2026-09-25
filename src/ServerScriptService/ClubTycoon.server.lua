@@ -1900,6 +1900,7 @@ local function onPlayerAdded(player)
 	money.Value = data.money
 	rebirthsValue.Value = data.rebirths
 	player:SetAttribute("Energy", 100)
+	player:SetAttribute("FreeLemonade", 1)   -- один бесплатный лимонад на старте
 	player:SetAttribute("PlayTime", data.playTime or 0)
 	player:SetAttribute("TotalEarned", data.totalEarned or 0)
 	local lastMoney = money.Value
@@ -2069,6 +2070,13 @@ clubAction.OnServerInvoke = function(player, action)
 			end
 			recalcIncome(plot)
 			playSound(CONFIG.SOUND_BUY, plot.machine, 0.6)
+		end
+	elseif action == "drinkFree" then
+		local left = player:GetAttribute("FreeLemonade") or 0
+		if left > 0 and (player:GetAttribute("Energy") or 100) < 100 then
+			player:SetAttribute("FreeLemonade", left - 1)
+			player:SetAttribute("Energy", 100)
+			applySpeedRef(player)
 		end
 	elseif action == "claimDaily" then
 		local st = menuState(plot)

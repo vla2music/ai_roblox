@@ -507,5 +507,47 @@ local function refreshEnergy()
 	eFill.BackgroundColor3 = e > 50 and Color3.fromRGB(80, 220, 90) or (e > 20 and Color3.fromRGB(240, 190, 40) or Color3.fromRGB(230, 60, 60))
 	eText.Text = "⚡ " .. math.floor(e) .. "%" .. (e <= 20 and L("  — выпей лимонад!", "  — drink lemonade!") or "")
 end
+-- бесплатный лимонад рядом со шкалой
+local freeBtn = button(screen, {
+	Size = UDim2.new(0, 70, 0, 50), Position = UDim2.new(1, -334, 1, -59),
+	BackgroundColor3 = Color3.fromRGB(255, 220, 60), Text = "🍋 x1", TextColor3 = Color3.fromRGB(60, 40, 0),
+}, function()
+	clubAction:InvokeServer("drinkFree")
+end)
+stroke(freeBtn, Color3.new(1, 1, 1), 2)
+local function refreshFree()
+	local n = player:GetAttribute("FreeLemonade") or 0
+	freeBtn.Visible = n > 0
+	freeBtn.Text = "🍋 x" .. n
+end
+player:GetAttributeChangedSignal("FreeLemonade"):Connect(refreshFree)
+refreshFree()
+
+-- уведомления, когда энергия падает ниже 50% и 20%
+local lastE = player:GetAttribute("Energy") or 100
+local function toast(msg, color)
+	local t = text(screen, {
+		Size = UDim2.new(0, 560, 0, 46), Position = UDim2.new(0.5, 0, 0.26, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 0.1, BackgroundColor3 = Color3.fromRGB(24, 22, 32), Text = msg, TextColor3 = color,
+	})
+	corner(t, 12)
+	stroke(t, color, 2)
+	task.delay(4, function() t:Destroy() end)
+end
+player:GetAttributeChangedSignal("Energy"):Connect(function()
+	local e = player:GetAttribute("Energy") or 100
+	local hasFree = (player:GetAttribute("FreeLemonade") or 0) > 0
+	local tip = hasFree and L(" Жми 🍋 внизу справа!", " Tap 🍋 bottom right!") or L(" Купи лимонад!", " Buy lemonade!")
+	if lastE > 50 and e <= 50 then
+		toast(L("⚡ Энергия 50% — ты замедляешься.", "⚡ Energy 50% — slowing down.") .. tip, Color3.fromRGB(240, 190, 40))
+	elseif lastE > 20 and e <= 20 then
+		toast(L("⚠️ Энергия почти на нуле!", "⚠️ Energy almost empty!") .. tip, Color3.fromRGB(255, 80, 80))
+	end
+	if hasFree and e <= 50 then
+		TweenService:Create(freeBtn, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 3, true), { Rotation = 10 }):Play()
+	end
+	lastE = e
+end)
+
 player:GetAttributeChangedSignal("Energy"):Connect(refreshEnergy)
 refreshEnergy()

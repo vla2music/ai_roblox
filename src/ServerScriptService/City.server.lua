@@ -396,10 +396,10 @@ local function cpart(size, cf, color, mat, shape)
 end
 local c0 = CFrame.new(0, 500, 0)
 local chest = cpart(Vector3.new(5, 3, 3.4), c0 * CFrame.new(0, 1.5, 0), WOOD, Enum.Material.WoodPlanks)          -- корпус
-cpart(Vector3.new(3.4, 5, 3.4), c0 * CFrame.new(0, 3, 0) * CFrame.Angles(0, 0, math.rad(90)), WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)  -- крышка-полукруг
+cpart(Vector3.new(5, 3.4, 3.4), c0 * CFrame.new(0, 3, 0), WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)  -- крышка-полукруг
 for _, dx in ipairs({ -1.9, 1.9 }) do                                                                            -- золотые обручи
 	cpart(Vector3.new(0.35, 3.1, 3.5), c0 * CFrame.new(dx, 1.5, 0), GOLD, Enum.Material.Metal)
-	cpart(Vector3.new(3.5, 0.35, 3.5), c0 * CFrame.new(dx, 3, 0) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, Enum.PartType.Cylinder)
+	cpart(Vector3.new(0.35, 3.55, 3.55), c0 * CFrame.new(dx, 3, 0), GOLD, Enum.Material.Metal, Enum.PartType.Cylinder)
 end
 cpart(Vector3.new(5.1, 0.35, 3.5), c0 * CFrame.new(0, 0.2, 0), GOLD, Enum.Material.Metal)                        -- нижняя кайма
 cpart(Vector3.new(5.1, 0.3, 3.5), c0 * CFrame.new(0, 3, 0), GOLD, Enum.Material.Metal)                           -- стык крышки
