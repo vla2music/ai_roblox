@@ -58,20 +58,27 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Быстрая дорожка: пока стоишь на ней — скорость x3
-local params = RaycastParams.new()
-params.FilterType = Enum.RaycastFilterType.Include
-params.FilterDescendantsInstances = { city }
-
-while true do
-	task.wait(0.15)
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if root and hum then
-		local base = player:GetAttribute("Pass_speed") == true and 28 or 16
-		local hit = workspace:Raycast(root.Position, Vector3.new(0, -6, 0), params)
-		local onPath = hit and hit.Instance:GetAttribute("SpeedPath") == true
-		hum.WalkSpeed = onPath and 48 or base
+-- Лента-конвейер: скорость частям задаём здесь, иначе персонаж не едет
+local beltFolder = city:WaitForChild("Лента", 30)
+if beltFolder then
+	for _, b in ipairs(beltFolder:GetChildren()) do
+		local v = b:IsA("BasePart") and b:GetAttribute("Vel")
+		if v then b.AssemblyLinearVelocity = v end
 	end
+end
+
+-- Бегущие стрелки на движущейся дорожке
+local arrows = city:WaitForChild("Лента", 30)
+arrows = arrows and arrows:WaitForChild("Стрелки", 10)
+if arrows then
+	local x1, x2, speed = arrows:GetAttribute("X1"), arrows:GetAttribute("X2"), arrows:GetAttribute("Speed")
+	local list = arrows:GetChildren()
+	local y, span = nil, x2 - x1
+	RunService.RenderStepped:Connect(function()
+		local t = os.clock()
+		for _, c in ipairs(list) do
+			local x = x1 + ((c:GetAttribute("X0") - x1) + c:GetAttribute("Dir") * speed * t) % span
+			c.CFrame = CFrame.new(x, c.Position.Y, c.Position.Z)
+		end
+	end)
 end

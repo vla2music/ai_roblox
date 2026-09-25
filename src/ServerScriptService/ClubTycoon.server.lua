@@ -532,7 +532,32 @@ function builders.pcs(item, origin, model, lang, plot)
 end
 
 -- Модель из магазина (ресепшн, автомат...)
+-- Человечек-администратор за стойкой
+local function spawnAdmin(origin, model)
+	local ok, npc = pcall(function()
+		local desc = Instance.new("HumanoidDescription")
+		desc.Shirt = 0
+		desc.HeadColor = Color3.fromRGB(234, 184, 146)
+		desc.TorsoColor = Color3.fromRGB(40, 120, 200)
+		desc.LeftArmColor = desc.HeadColor
+		desc.RightArmColor = desc.HeadColor
+		desc.LeftLegColor = Color3.fromRGB(30, 30, 40)
+		desc.RightLegColor = Color3.fromRGB(30, 30, 40)
+		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+	end)
+	if not ok or not npc then return end
+	npc.Name = "Админ"
+	npc.HumanoidRootPart.Anchored = true
+	npc.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	-- стоит за стойкой, лицом к залу
+	npc:PivotTo(at(origin, -17.5, 3.2, 10) * CFrame.Angles(0, math.rad(-90), 0))
+	npc.Parent = model
+	local head = npc:FindFirstChild("Head")
+	if head then addLabel(head, "ADMIN", Color3.fromRGB(120, 220, 255), 2) end
+end
+
 function builders.model(item, origin, model)
+	if item.id == "admin" then spawnAdmin(origin, model) end
 	local cf = at(origin, item.pos[1], 0, item.pos[2]) * CFrame.Angles(0, math.rad(item.rot or 0), 0)
 	local m = cloneTemplate(item.model, item.scale)
 	if m then

@@ -30,22 +30,67 @@ end
 -- Быстрая дорожка: встал на неё — бежишь в 3 раза быстрее
 --=========================================================================
 
+-- Движущаяся дорожка-петля: к последнему клубу по ближней ленте,
+-- обратно по дальней, на концах — разворот по кругу.
 local PATH_Z = 100
-local path = part({
-	Name = "БыстраяДорожка",
-	Size = Vector3.new(1480, 1, 14),
-	Position = Vector3.new(600, GROUND + 0.5, PATH_Z),
-	Color = Color3.fromRGB(215, 220, 235),
-	Material = Enum.Material.Concrete,
-})
-path:SetAttribute("SpeedPath", true)
-for _, dz in ipairs({ -7.3, 7.3 }) do
-	part({ Size = Vector3.new(1480, 1.4, 0.6), Position = Vector3.new(600, GROUND + 0.7, PATH_Z + dz), Color = Color3.fromRGB(120, 80, 50), Material = Enum.Material.Wood })
+local X1, X2 = -110, 1310
+local BELT_SPEED = 30
+local LANE = 10           -- ширина ленты
+local GAP = 12            -- расстояние между центрами лент
+local belts = Instance.new("Folder")
+belts.Name = "Лента"
+belts.Parent = city
+
+local function belt(cf, length, dir, color)
+	local b = part({
+		Parent = belts, Size = Vector3.new(length, 1, LANE), CFrame = cf,
+		Color = color, Material = Enum.Material.SmoothPlastic,
+	})
+	b.AssemblyLinearVelocity = dir * BELT_SPEED
+	b:SetAttribute("Vel", dir * BELT_SPEED)   -- клиент тоже ставит скорость ленте (физика персонажа у клиента)
+	return b
 end
--- стрелки на дорожке
-for x = -100, 1300, 40 do
-	local arrow = part({ Size = Vector3.new(6, 0.1, 3), Position = Vector3.new(x, GROUND + 1.02, PATH_Z), Color = Color3.fromRGB(80, 220, 255), Material = Enum.Material.Neon, CanCollide = false })
-	arrow:SetAttribute("SpeedPath", true)
+
+local zNear, zFar = PATH_Z - GAP / 2, PATH_Z + GAP / 2
+local y = GROUND + 2.5   -- газон террейна «вспухает» примерно до -2, лента должна быть выше
+belt(CFrame.new((X1 + X2) / 2, y, zNear), X2 - X1, Vector3.new(1, 0, 0), Color3.fromRGB(40, 190, 255))
+belt(CFrame.new((X1 + X2) / 2, y, zFar), X2 - X1, Vector3.new(-1, 0, 0), Color3.fromRGB(255, 120, 60))
+-- бегущие стрелки на лентах (двигает их Rides.client.lua)
+local chevrons = Instance.new("Folder")
+chevrons.Name = "Стрелки"
+chevrons.Parent = belts
+for _, lane in ipairs({ { zNear, 1 }, { zFar, -1 } }) do
+	for x = X1 + 10, X2 - 10, 24 do
+		local c = part({
+			Parent = chevrons, Size = Vector3.new(3, 0.12, 6), CanCollide = false, CanQuery = false, CanTouch = false,
+			CFrame = CFrame.new(x, y + 0.56, lane[1]), Color = Color3.fromRGB(255, 255, 255), Material = Enum.Material.Neon,
+		})
+		c:SetAttribute("Dir", lane[2])
+		c:SetAttribute("X0", x)
+	end
+end
+chevrons:SetAttribute("X1", X1 + 10)
+chevrons:SetAttribute("X2", X2 - 10)
+chevrons:SetAttribute("Speed", BELT_SPEED)
+
+-- развороты полукругом
+for _, e in ipairs({ { X2, 1 }, { X1, -1 } }) do
+	local cx, side = e[1], e[2]
+	local n = 10
+	for k = 0, n - 1 do
+		local a = (k + 0.5) / n * math.pi
+		-- угол от ближней ленты к дальней
+		local px = cx + side * math.sin(a) * GAP / 2
+		local pz = PATH_Z - math.cos(a) * GAP / 2
+		local tangent = Vector3.new(side * math.cos(a), 0, math.sin(a))
+		local seg = belt(CFrame.lookAt(Vector3.new(px, y, pz), Vector3.new(px, y, pz) + tangent) * CFrame.Angles(0, math.rad(90), 0),
+			LANE * 0.7, tangent, Color3.fromRGB(255, 220, 60))
+		seg.Size = Vector3.new(GAP * 0.5, 1, LANE)
+	end
+end
+-- бортики и надпись
+for _, z in ipairs({ PATH_Z - GAP / 2 - LANE / 2 - 0.3, PATH_Z + GAP / 2 + LANE / 2 + 0.3 }) do
+	part({ Size = Vector3.new(X2 - X1, 1.6, 0.6), Position = Vector3.new((X1 + X2) / 2, y + 0.8, z), Color = Color3.fromRGB(230, 230, 240), Material = Enum.Material.Metal })
 end
 -- ступеньки от каждого участка вниз к дорожке
 for i = 0, 5 do
