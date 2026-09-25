@@ -12,6 +12,13 @@ local DataStoreService   = game:GetService("DataStoreService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService       = game:GetService("TweenService")
 local SoundService       = game:GetService("SoundService")
+local ServerStorage      = game:GetService("ServerStorage")
+local Lighting           = game:GetService("Lighting")
+local MaterialService    = game:GetService("MaterialService")
+
+-- Красивые модели из магазина Roblox лежат в ServerStorage > Шаблоны.
+-- Если какой-то модели там нет, вместо неё строится простая из кубиков.
+local templates = ServerStorage:FindFirstChild("Шаблоны")
 
 --=========================================================================
 -- 1. НАСТРОЙКИ
@@ -33,10 +40,17 @@ local CONFIG = {
 	-- Музыка и звуки.
 	-- ID берутся в Studio: Toolbox -> Audio -> правой кнопкой по треку
 	-- -> Copy Asset ID. Пусто = звука нет, игра работает как обычно.
-	MUSIC_IDS      = {},   -- например: {"rbxassetid://1234567890"}
+	MUSIC_IDS      = {
+		"rbxassetid://110520973603761",  -- Drillbeat
+		"rbxassetid://139164113687966",  -- PEACE OF MIND
+		"rbxassetid://120540010768924",  -- The Calm After Sunset
+	},
 	MUSIC_VOLUME   = 0.3,
-	SOUND_BUY      = "",   -- звук покупки
-	SOUND_COLLECT  = "",   -- звук, когда забираешь деньги из сейфа
+	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
+	SOUND_COLLECT  = "rbxassetid://113730061669739",  -- звук сбора монетки
+
+	-- Ковролин для пола (создан в Studio, лежит в MaterialService)
+	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
 
 	-- Монетный аппарат: сам выбрасывает монетки на площадку,
 	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
@@ -60,20 +74,23 @@ local CONFIG = {
 --   pos     — где стоит объект (X, Y, Z относительно центра участка)
 --   kind    — как выглядит: "desk" (комп. стол), "box" (ящик/автомат),
 --             "zone" (зона на полу), "sign" (вывеска), "walls" (стены)
+--   model   — имя красивой модели из ServerStorage > Шаблоны (если есть)
+--   rot     — поворот модели в градусах
+--   chairs  — сколько кресел поставить на зону
 --=========================================================================
 
 local ITEMS = {
-	{ id="reception", name="Ресепшн",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  0, 0,  22), kind="box",  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
-	{ id="pc1",       name="Игровой ПК №1",        cost=25,    income=2,   needs="reception", pos=Vector3.new(-34, 0, -30), kind="desk", color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc2",       name="Игровой ПК №2",        cost=120,   income=3,   needs="pc1",       pos=Vector3.new(-34, 0, -15), kind="desk", color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc3",       name="Игровой ПК №3",        cost=300,   income=5,   needs="pc2",       pos=Vector3.new(-34, 0,   0), kind="desk", color=Color3.fromRGB(200, 60, 80) },
-	{ id="vending",   name="Автомат с едой",       cost=650,   income=9,   needs="pc3",       pos=Vector3.new( 34, 0,  30), kind="box",  size=Vector3.new(5,9,4),   color=Color3.fromRGB(230,150, 30) },
-	{ id="chairs",    name="Геймерские кресла",    cost=1200,  income=14,  needs="vending",   pos=Vector3.new(-14, 0,  16), kind="zone", size=Vector3.new(16,1,16),  color=Color3.fromRGB(120, 60,190) },
-	{ id="pc4",       name="Игровой ПК №4",        cost=2000,  income=20,  needs="chairs",    pos=Vector3.new(-34, 0,  15), kind="desk", color=Color3.fromRGB(200, 60, 80) },
-	{ id="pc5",       name="Игровой ПК №5",        cost=3200,  income=26,  needs="pc4",       pos=Vector3.new(-34, 0,  30), kind="desk", color=Color3.fromRGB(200, 60, 80) },
-	{ id="ac",        name="Кондиционер",          cost=5000,  income=35,  needs="pc5",       pos=Vector3.new(  0, 8, -40), kind="box",  size=Vector3.new(12,5,4),  color=Color3.fromRGB(220,220,230) },
-	{ id="stream",    name="Стримерская комната",  cost=8000,  income=55,  needs="ac",        pos=Vector3.new( 30, 0, -28), kind="desk", color=Color3.fromRGB( 40,180,140) },
-	{ id="vip",       name="VIP-зона",             cost=13000, income=85,  needs="stream",    pos=Vector3.new( 28, 0,  -4), kind="zone", size=Vector3.new(18,1,18),  color=Color3.fromRGB(240,200, 60) },
+	{ id="reception", name="Ресепшн",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  6, 0,  22), kind="box",   model="reception", rot=180,  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
+	{ id="pc1",       name="Игровой ПК №1",        cost=25,    income=2,   needs="reception", pos=Vector3.new(-34, 0, -30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="pc2",       name="Игровой ПК №2",        cost=120,   income=3,   needs="pc1",       pos=Vector3.new(-34, 0, -15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="pc3",       name="Игровой ПК №3",        cost=300,   income=5,   needs="pc2",       pos=Vector3.new(-34, 0,   0), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="vending",   name="Автомат с едой",       cost=650,   income=9,   needs="pc3",       pos=Vector3.new( 34, 0,  30), kind="box",   model="vending", rot=-90,  size=Vector3.new(5,9,4),   color=Color3.fromRGB(230,150, 30) },
+	{ id="chairs",    name="Геймерские кресла",    cost=1200,  income=14,  needs="vending",   pos=Vector3.new(-14, 0,  16), kind="zone",  chairs=4, size=Vector3.new(16,1,16),  color=Color3.fromRGB(120, 60,190) },
+	{ id="pc4",       name="Игровой ПК №4",        cost=2000,  income=20,  needs="chairs",    pos=Vector3.new(-34, 0,  15), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="pc5",       name="Игровой ПК №5",        cost=3200,  income=26,  needs="pc4",       pos=Vector3.new(-34, 0,  30), kind="desk",  model="pc", rot=90, color=Color3.fromRGB(200, 60, 80) },
+	{ id="ac",        name="Кондиционер",          cost=5000,  income=35,  needs="pc5",       pos=Vector3.new(  0, 0, -42), kind="box",   model="ac", backing=true,  size=Vector3.new(12,5,4),  color=Color3.fromRGB(220,220,230) },
+	{ id="stream",    name="Стримерская комната",  cost=8000,  income=55,  needs="ac",        pos=Vector3.new( 30, 0, -28), kind="desk",  model="pc", rot=-90, color=Color3.fromRGB( 40,180,140) },
+	{ id="vip",       name="VIP-зона",             cost=13000, income=85,  needs="stream",    pos=Vector3.new( 28, 0,  -4), kind="zone",  chairs=3, size=Vector3.new(18,1,18),  color=Color3.fromRGB(240,200, 60) },
 	{ id="tourney",   name="Турнирная сцена",      cost=22000, income=140, needs="vip",       pos=Vector3.new(  4, 0, -20), kind="zone", size=Vector3.new(22,2,14),  color=Color3.fromRGB( 90,110,255) },
 	{ id="walls",     name="Стены и крыша",        cost=35000, income=60,  needs="tourney",   pos=Vector3.new(  0, 0,   0), kind="walls", btn=Vector3.new(-8, 0, 30) },
 	{ id="neon",      name="Неоновая вывеска",     cost=50000, income=250, needs="walls",     pos=Vector3.new(  0,26,  42), kind="sign", btn=Vector3.new( 8, 0, 30) },
@@ -254,6 +271,45 @@ function builders.desk(item, origin)
 	return model
 end
 
+-- Красивая модель из магазина. Если шаблона нет — строим по-старому.
+function builders.model(item, origin)
+	local template = templates and templates:FindFirstChild(item.model)
+	if not template then
+		return builders[item.kind](item, origin)
+	end
+
+	local model = template:Clone()
+	model.Name = item.id
+	model:PivotTo(origin * CFrame.Angles(0, math.rad(item.rot or 0), 0))
+
+	if item.backing then -- висит на тёмной панели на высоте 7 студов (кондиционер)
+		model:PivotTo(origin * CFrame.new(0, 7, 0))
+		local _, size = model:GetBoundingBox()
+		makePart({
+			Size = Vector3.new(size.X + 4, 16, 1),
+			CFrame = origin * CFrame.new(0, 8, -size.Z / 2 - 0.5),
+			Color = Color3.fromRGB(35, 30, 50),
+			Parent = model,
+		})
+	end
+
+	-- экраны мониторов светятся цветом предмета, над моделью — подсветка
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name == "Screen" then
+			part.Material = Enum.Material.Glass
+			part.Color = item.color:Lerp(Color3.new(1, 1, 1), 0.3)
+		end
+	end
+	local glow = Instance.new("PointLight")
+	glow.Color = item.color
+	glow.Range = 14
+	glow.Brightness = 1.2
+
+	model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+	glow.Parent = model.PrimaryPart
+	return model
+end
+
 -- Простая коробка: автомат, ресепшн, кондиционер
 function builders.box(item, origin)
 	local model = Instance.new("Model")
@@ -288,13 +344,46 @@ function builders.zone(item, origin)
 	local pad = makePart({
 		Size = size,
 		CFrame = origin * CFrame.new(0, size.Y / 2, 0),
-		Color = item.color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.25,
+		Color = item.color:Lerp(Color3.new(0, 0, 0), 0.35),
+		Material = Enum.Material.SmoothPlastic,
 		Parent = model,
 	})
 
+	-- светящаяся рамка по краю зоны
+	for _, edge in ipairs({
+		{ Vector3.new(size.X, 0.25, 0.4), CFrame.new(0, size.Y, -size.Z / 2) },
+		{ Vector3.new(size.X, 0.25, 0.4), CFrame.new(0, size.Y,  size.Z / 2) },
+		{ Vector3.new(0.4, 0.25, size.Z), CFrame.new(-size.X / 2, size.Y, 0) },
+		{ Vector3.new(0.4, 0.25, size.Z), CFrame.new( size.X / 2, size.Y, 0) },
+	}) do
+		makePart({
+			Size = edge[1],
+			CFrame = origin * edge[2],
+			Color = item.color,
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			Parent = model,
+		})
+	end
+
 	addLabel(pad, item.name, item.color)
+
+	local light = Instance.new("PointLight")
+	light.Color = item.color
+	light.Range = 18
+	light.Brightness = 1.5
+	light.Parent = pad
+
+	-- кресла в ряд на зоне
+	local chair = templates and templates:FindFirstChild("chair")
+	if chair and item.chairs then
+		local step = size.X / item.chairs
+		for i = 1, item.chairs do
+			local c = chair:Clone()
+			c:PivotTo(origin * CFrame.new(-size.X / 2 + step * (i - 0.5), size.Y, 0))
+			c.Parent = model
+		end
+	end
 
 	model.PrimaryPart = pad
 	return model
@@ -337,7 +426,7 @@ function builders.walls(item, origin)
 
 	local half = CONFIG.PLOT_SIZE / 2
 	local height = 24
-	local color = Color3.fromRGB(70, 70, 90)
+	local color = Color3.fromRGB(85, 75, 110)
 
 	local sides = {
 		{ Vector3.new(CONFIG.PLOT_SIZE, height, 2), CFrame.new(0, height / 2, -half) },
@@ -352,10 +441,38 @@ function builders.walls(item, origin)
 			Size = side[1],
 			CFrame = origin * side[2],
 			Color = color,
-			Transparency = 0.15,
 			Parent = model,
 		})
 		first = first or wall
+	end
+
+	-- граффити: панели на внутренней стороне стен
+	local graffiti = {}
+	if templates then
+		for _, child in ipairs(templates:GetChildren()) do
+			if child:IsA("Decal") then table.insert(graffiti, child) end
+		end
+	end
+	if #graffiti > 0 then
+		local spots = {
+			CFrame.new(-20, 10, -half + 1.2),
+			CFrame.new( 20, 10, -half + 1.2),
+			CFrame.new(-half + 1.2, 10, -10) * CFrame.Angles(0, math.rad(90), 0),
+			CFrame.new( half - 1.2, 10,  10) * CFrame.Angles(0, math.rad(-90), 0),
+			CFrame.new(-half + 1.2, 10,  22) * CFrame.Angles(0, math.rad(90), 0),
+		}
+		for i, spot in ipairs(spots) do
+			local panel = makePart({
+				Size = Vector3.new(16, 12, 0.2),
+				CFrame = origin * spot,
+				Transparency = 1,
+				CanCollide = false,
+				Parent = model,
+			})
+			local decal = graffiti[(i - 1) % #graffiti + 1]:Clone()
+			decal.Face = Enum.NormalId.Back
+			decal.Parent = panel
+		end
 	end
 
 	makePart({ -- крыша
@@ -365,6 +482,27 @@ function builders.walls(item, origin)
 		Transparency = 0.35,
 		Parent = model,
 	})
+
+	-- лампы под потолком
+	for _, x in ipairs({ -22, 22 }) do
+		for _, z in ipairs({ -22, 22 }) do
+			local lamp = makePart({
+				Size = Vector3.new(8, 0.4, 8),
+				CFrame = origin * CFrame.new(x, height - 1.3, z),
+				Color = Color3.fromRGB(245, 240, 255),
+				Material = Enum.Material.Glass,
+				CanCollide = false,
+				Parent = model,
+			})
+			local light = Instance.new("SpotLight")
+			light.Face = Enum.NormalId.Bottom
+			light.Range = 40
+			light.Angle = 120
+			light.Brightness = 2
+			light.Color = Color3.fromRGB(230, 215, 255)
+			light.Parent = lamp
+		end
+	end
 
 	model.PrimaryPart = first
 	return model
@@ -409,11 +547,33 @@ local function createPlot(index)
 		Name = "Пол",
 		Size = Vector3.new(CONFIG.PLOT_SIZE, 2, CONFIG.PLOT_SIZE),
 		CFrame = origin * CFrame.new(0, -1, 0),
-		Color = Color3.fromRGB(55, 55, 65),
-		Material = Enum.Material.Concrete,
+		Color = Color3.fromRGB(110, 100, 130),
+		Material = Enum.Material.Carpet,
 		Parent = model,
 	})
+	if MaterialService:FindFirstChild(CONFIG.FLOOR_MATERIAL_VARIANT, true) then
+		floor.MaterialVariant = CONFIG.FLOOR_MATERIAL_VARIANT
+	end
 	model.PrimaryPart = floor
+
+	-- неоновая кайма по краю участка
+	local half = CONFIG.PLOT_SIZE / 2
+	for _, edge in ipairs({
+		{ Vector3.new(CONFIG.PLOT_SIZE, 0.3, 0.6), CFrame.new(0, 0.15, -half + 0.3) },
+		{ Vector3.new(CONFIG.PLOT_SIZE, 0.3, 0.6), CFrame.new(0, 0.15,  half - 0.3) },
+		{ Vector3.new(0.6, 0.3, CONFIG.PLOT_SIZE), CFrame.new(-half + 0.3, 0.15, 0) },
+		{ Vector3.new(0.6, 0.3, CONFIG.PLOT_SIZE), CFrame.new( half - 0.3, 0.15, 0) },
+	}) do
+		makePart({
+			Name = "Кайма",
+			Size = edge[1],
+			CFrame = origin * edge[2],
+			Color = Color3.fromRGB(170, 60, 255),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			Parent = model,
+		})
+	end
 
 	-- точка появления игрока
 	local spawnPad = makePart({
@@ -421,9 +581,14 @@ local function createPlot(index)
 		Size = Vector3.new(10, 1, 10),
 		CFrame = origin * CFrame.new(0, 0.5, 40),
 		Color = Color3.fromRGB(80, 200, 120),
-		Material = Enum.Material.Neon,
+		Material = Enum.Material.SmoothPlastic,
 		Parent = model,
 	})
+
+	local spawnLight = Instance.new("PointLight")
+	spawnLight.Color = Color3.fromRGB(80, 255, 140)
+	spawnLight.Range = 16
+	spawnLight.Parent = spawnPad
 
 	-- табличка «свободно / клуб такого-то»
 	local pole = makePart({
@@ -451,6 +616,12 @@ local function createPlot(index)
 		Material = Enum.Material.Neon,
 		Parent = model,
 	})
+	local machineLight = Instance.new("PointLight")
+	machineLight.Color = Color3.fromRGB(255, 210, 80)
+	machineLight.Range = 20
+	machineLight.Brightness = 2
+	machineLight.Parent = machine
+
 	local safeLabel = addLabel(machine, "МОНЕТНЫЙ АППАРАТ\nжми E!", Color3.fromRGB(255, 240, 150))
 
 	local prompt = Instance.new("ProximityPrompt")
@@ -505,8 +676,8 @@ local function createPlot(index)
 			Name = "Кнопка_" .. item.id,
 			Size = Vector3.new(6, 1.2, 6),
 			CFrame = origin * CFrame.new(offset.X, 0.6, offset.Z),
-			Color = Color3.fromRGB(200, 70, 70),
-			Material = Enum.Material.Neon,
+			Color = Color3.fromRGB(220, 60, 60),
+			Material = Enum.Material.SmoothPlastic,
 			Parent = model,
 		})
 		button:SetAttribute("ItemId", item.id)
@@ -563,7 +734,7 @@ local function buildItem(plot, item, animate)
 	if plot.built[item.id] then return end
 
 	local origin = plot.origin * CFrame.new(item.pos)
-	local builder = builders[item.kind] or builders.box
+	local builder = (item.model and builders.model) or builders[item.kind] or builders.box
 	local model = builder(item, origin)
 	model.Parent = plot.model
 	plot.built[item.id] = model
@@ -677,8 +848,9 @@ local function dropCoin(plot, value)
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(0.4, 1.6, 1.6),
 		CFrame = plot.machine.CFrame * CFrame.new(0, -1.5, -2) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(255, 205, 40),
-		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(255, 200, 40),
+		Material = Enum.Material.Metal,
+		Reflectance = 0.2,
 		CanCollide = false,
 		Parent = plot.coinFolder,
 	})
@@ -832,6 +1004,42 @@ end
 --=========================================================================
 -- 9. ЗАПУСК
 --=========================================================================
+
+-- Атмосфера клуба: вечер, лёгкая дымка, неон светится ярче
+local function setupAtmosphere()
+	Lighting.ClockTime = 16
+	Lighting.Brightness = 2.5
+	Lighting.ExposureCompensation = 0.2
+	Lighting.Ambient = Color3.fromRGB(165, 150, 190)
+	Lighting.OutdoorAmbient = Color3.fromRGB(170, 160, 195)
+	Lighting.EnvironmentDiffuseScale = 0.5
+	Lighting.EnvironmentSpecularScale = 0.5
+
+	local function ensure(className, name)
+		local obj = Lighting:FindFirstChild(name) or Instance.new(className)
+		obj.Name = name
+		obj.Parent = Lighting
+		return obj
+	end
+
+	local bloom = ensure("BloomEffect", "КлубBloom")
+	bloom.Intensity = 0.3
+	bloom.Size = 18
+	bloom.Threshold = 1.5
+
+	local cc = ensure("ColorCorrectionEffect", "КлубЦвет")
+	cc.Saturation = 0.2
+	cc.Contrast = 0.1
+	cc.TintColor = Color3.fromRGB(240, 230, 255)
+
+	local atmo = ensure("Atmosphere", "КлубДымка")
+	atmo.Density = 0.1
+	atmo.Color = Color3.fromRGB(120, 90, 180)
+	atmo.Decay = Color3.fromRGB(60, 30, 110)
+	atmo.Glare = 0.2
+	atmo.Haze = 1.5
+end
+setupAtmosphere()
 
 for index = 1, CONFIG.MAX_PLOTS do
 	connectPlotTouches(createPlot(index))
