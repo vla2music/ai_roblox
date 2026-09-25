@@ -65,7 +65,7 @@ local CONFIG = {
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
 
 	-- Фото владельца на сцене. Когда загрузим картинку — впиши её ID сюда.
-	POSTER_IMAGE   = "rbxassetid://90642660157791",   -- портрет Назара
+	POSTER_IMAGE   = "",   -- реальные фото детей Roblox запрещает (правило о личных данных). Только аватар!
 	-- Видео владельца на сцене (важнее фото). Впиши ID после загрузки
 	-- на create.roblox.com, например "rbxassetid://1234567890".
 	POSTER_VIDEO   = "",
@@ -188,17 +188,27 @@ local function loadData(userId)
 		return {
 			money = tonumber(result.money) or CONFIG.START_MONEY,
 			owned = type(result.owned) == "table" and result.owned or {},
+			rebirths = tonumber(result.rebirths) or 0,
 		}
 	end
 	if not ok then
 		warn("[КлубТайкун] Не удалось загрузить данные:", result)
+		-- loadFailed: сохранять такого игрока нельзя, иначе пустой клуб
+		-- затрёт настоящий прогресс в хранилище
+		return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0, loadFailed = true }
 	end
-	return { money = CONFIG.START_MONEY, owned = {} }
+	return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0 }
 end
 
+local noSave = {}   -- userId -> true, если сохранение не загрузилось
+
 local function saveData(userId, data)
+	if noSave[userId] then
+		warn("[КлубТайкун] Пропускаю сохранение: прогресс не был загружен", userId)
+		return false
+	end
 	local ok, err = pcall(function()
-		store:SetAsync("p_" .. userId, { money = data.money, owned = data.owned })
+		store:SetAsync("p_" .. userId, { money = data.money, owned = data.owned, rebirths = data.rebirths })
 	end)
 	if not ok then
 		warn("[КлубТайкун] Не удалось сохранить данные:", err)
@@ -992,7 +1002,8 @@ local function recalcIncome(plot)
 		if item then total += item.income end
 	end
 	local boost = plot.owned.server and CONFIG.SERVER_BOOST or 1
-	plot.income = math.floor(total * boost * plot.multiplier)
+	local rebirthBoost = 1 + (plot.rebirths or 0)   -- ребёрт: x2, x3, x4...
+	plot.income = math.floor(total * boost * plot.multiplier * rebirthBoost)
 
 	if plot.owner then
 		local stats = plot.owner:FindFirstChild("Stats")
@@ -1209,6 +1220,10 @@ local function onPlayerAdded(player)
 	money.Name = CONFIG.CURRENCY_NAME
 	money.Parent = leaderstats
 
+	local rebirthsValue = Instance.new("IntValue")
+	rebirthsValue.Name = "Rebirths"
+	rebirthsValue.Parent = leaderstats
+
 	-- вспомогательные значения для интерфейса
 	local stats = Instance.new("Folder")
 	stats.Name = "Stats"
@@ -1223,7 +1238,9 @@ local function onPlayerAdded(player)
 	storage.Parent = stats
 
 	local data = loadData(player.UserId)
+	if data.loadFailed then noSave[player.UserId] = true end
 	money.Value = data.money
+	rebirthsValue.Value = data.rebirths
 
 	local plot = findFreePlot()
 	if not plot then
@@ -1234,6 +1251,7 @@ local function onPlayerAdded(player)
 	plot.owner = player
 	plot.owned = {}
 	plot.multiplier = hasDoubleCash(player) and 2 or 1
+	plot.rebirths = data.rebirths
 	plotByPlayer[player] = plot
 	plot.lang = langOf(player)
 	plot.nameLabel.Text = T(plot.lang, "club", player.DisplayName)
@@ -1270,6 +1288,8 @@ local function onPlayerAdded(player)
 			clearPlot(plot)
 			player:SetAttribute("Floor1Done", false)
 			money.Value = CONFIG.START_MONEY
+			plot.rebirths = 0
+			rebirthsValue.Value = 0
 			recalcIncome(plot)
 			refreshButtons(plot)
 		end)
@@ -1284,11 +1304,40 @@ local function collectData(player)
 	local money = player:FindFirstChild("leaderstats")
 		and player.leaderstats:FindFirstChild(CONFIG.CURRENCY_NAME)
 
+	local rebirths = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Rebirths")
 	return {
 		money = money and money.Value or CONFIG.START_MONEY,
 		owned = plot and plot.owned or {},
+		rebirths = rebirths and rebirths.Value or 0,
 	}
 end
+
+-- Ребёрт: игрок «продаёт» готовый клуб и начинает заново с бонусом к доходу
+local rebirthEvent = Instance.new("RemoteEvent")
+rebirthEvent.Name = "ClubRebirth"
+rebirthEvent.Parent = game:GetService("ReplicatedStorage")
+
+rebirthEvent.OnServerEvent:Connect(function(player)
+	local plot = plotByPlayer[player]
+	if not plot or plot.owner ~= player then return end
+	if not plot.owned[ITEMS[#ITEMS].id] then return end   -- только после всего этажа
+
+	local keepMultiplier = plot.multiplier
+	clearPlot(plot)
+	plot.multiplier = keepMultiplier
+	plot.rebirths = (plot.rebirths or 0) + 1
+
+	player.leaderstats.Rebirths.Value = plot.rebirths
+	player.leaderstats[CONFIG.CURRENCY_NAME].Value = CONFIG.START_MONEY
+	player:SetAttribute("Floor1Done", false)
+	recalcIncome(plot)
+	refreshButtons(plot)
+	saveData(player.UserId, collectData(player))
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root then root.CFrame = plot.spawnPad.CFrame * CFrame.new(0, 4, 0) end
+end)
 
 local function onPlayerRemoving(player)
 	saveData(player.UserId, collectData(player))

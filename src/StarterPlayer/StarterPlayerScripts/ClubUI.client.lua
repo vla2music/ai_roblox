@@ -192,8 +192,8 @@ local function celebrate()
 	sub.TextWrapped = true
 	sub.TextColor3 = Color3.new(1, 1, 1)
 	sub.Text = isRu
-		and "Ты построил лучший киберклуб в городе!\nЗа дверью VIP SOLO скоро откроется 2 этаж…"
-		or "You built the best cyber club in town!\nFloor 2 opens soon behind the VIP SOLO door…"
+		and "Ты построил лучший киберклуб в городе!\nЖми РЕБЁРТ — начни заново с двойным доходом!"
+		or "You built the best cyber club in town!\nHit REBIRTH to start over with double income!"
 	sub.Parent = banner
 
 	-- конфетти
@@ -223,6 +223,62 @@ local function celebrate()
 		banner:Destroy()
 	end)
 end
+
+--=========================================================================
+-- Ребёрт: продать готовый клуб и начать заново с бонусом к доходу
+--=========================================================================
+
+local rebirthEvent = game:GetService("ReplicatedStorage"):WaitForChild("ClubRebirth")
+local rebirths = leaderstats:WaitForChild("Rebirths")
+
+local rebirthButton = Instance.new("TextButton")
+rebirthButton.Size = UDim2.new(0, 320, 0, 48)
+rebirthButton.Position = UDim2.new(0.5, -160, 0, 144)
+rebirthButton.BackgroundColor3 = Color3.fromRGB(255, 190, 60)
+rebirthButton.Font = Enum.Font.GothamBlack
+rebirthButton.TextScaled = true
+rebirthButton.TextColor3 = Color3.fromRGB(40, 25, 0)
+rebirthButton.Parent = screen
+Instance.new("UICorner", rebirthButton).CornerRadius = UDim.new(0, 12)
+local rbPad = Instance.new("UIPadding", rebirthButton)
+rbPad.PaddingLeft = UDim.new(0, 10)
+rbPad.PaddingRight = UDim.new(0, 10)
+rbPad.PaddingTop = UDim.new(0, 6)
+rbPad.PaddingBottom = UDim.new(0, 6)
+
+local confirming = false
+local function rebirthText()
+	local nextBoost = rebirths.Value + 2
+	if confirming then
+		return isRu and ("Точно? Клуб и монеты сбросятся. Жми ещё раз!") or "Sure? Club & coins reset. Click again!"
+	end
+	return isRu and ("🔄 РЕБЁРТ: доход ×" .. nextBoost .. " навсегда") or ("🔄 REBIRTH: x" .. nextBoost .. " income forever")
+end
+local function refreshRebirth()
+	rebirthButton.Visible = player:GetAttribute("Floor1Done") == true
+	rebirthButton.Text = rebirthText()
+end
+refreshRebirth()
+rebirths:GetPropertyChangedSignal("Value"):Connect(refreshRebirth)
+
+rebirthButton.MouseButton1Click:Connect(function()
+	if not confirming then
+		confirming = true
+		rebirthButton.BackgroundColor3 = Color3.fromRGB(255, 110, 80)
+		refreshRebirth()
+		task.delay(4, function()
+			confirming = false
+			rebirthButton.BackgroundColor3 = Color3.fromRGB(255, 190, 60)
+			refreshRebirth()
+		end)
+		return
+	end
+	confirming = false
+	rebirthButton.BackgroundColor3 = Color3.fromRGB(255, 190, 60)
+	rebirthEvent:FireServer()
+end)
+
+player:GetAttributeChangedSignal("Floor1Done"):Connect(refreshRebirth)
 
 player:GetAttributeChangedSignal("Floor1Done"):Connect(function()
 	local done = player:GetAttribute("Floor1Done") == true
