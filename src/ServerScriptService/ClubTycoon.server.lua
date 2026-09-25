@@ -1333,7 +1333,9 @@ local function createPlot(index)
 	-- площадки «доход за N часов» за Robux (наступил — открылась покупка)
 	local padLabels = {}
 	for k, pack in ipairs(Shared.COIN_PACKS) do
-		local pad = box(model, origin, Vector3.new(7, 0.8, 7), -48 + (k - 1) * 7, 0.4, 41, Color3.fromRGB(255, 220, 40), Enum.Material.Neon)
+		local pad = box(model, origin, Vector3.new(7, 0.8, 7), -48 + (k - 1) * 7, 0.4, 41, Color3.fromRGB(255, 205, 40), Enum.Material.SmoothPlastic)
+		box(model, origin, Vector3.new(0.5, 9.2, 9.2), -48 + (k - 1) * 7, 0.25, 41, Color3.fromRGB(60, 60, 70), Enum.Material.Metal,
+			{ Shape = Enum.PartType.Cylinder, CanCollide = false }).CFrame = at(origin, -48 + (k - 1) * 7, 0.25, 41) * CFrame.Angles(0, 0, math.rad(90))
 		pad.Shape = Enum.PartType.Cylinder
 		pad.Size = Vector3.new(0.8, 8, 8)
 		pad.CFrame = at(origin, -48 + (k - 1) * 7, 0.4, 41) * CFrame.Angles(0, 0, math.rad(90))
@@ -1347,6 +1349,9 @@ local function createPlot(index)
 			if not player or pack.id == 0 then return end
 			if cooldown[player] and os.clock() - cooldown[player] < 5 then return end
 			cooldown[player] = os.clock()
+			local base = pad.CFrame
+			TweenService:Create(pad, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, true), { CFrame = base * CFrame.new(-0.35, 0, 0) }):Play()
+			playSound(CONFIG.SOUND_COLLECT, pad, 0.5)
 			MarketplaceService:PromptProductPurchase(player, pack.id)
 		end)
 	end
@@ -1395,7 +1400,15 @@ local function createPlot(index)
 
 	-- кнопки покупок
 	for _, item in ipairs(ITEMS) do
-		local button = box(model, origin, Vector3.new(6, 1.2, 6), item.btn[1], 0.6, item.btn[2], Color3.fromRGB(220, 60, 60))
+		-- кнопка: серый круглый постамент + красная «шайба» сверху (без неона)
+		local button = box(model, origin, Vector3.new(0.9, 6, 6), item.btn[1], 0.75, item.btn[2], Color3.fromRGB(215, 45, 55), Enum.Material.SmoothPlastic,
+			{ Shape = Enum.PartType.Cylinder, Reflectance = 0.1 })
+		button.CFrame = at(origin, item.btn[1], 0.75, item.btn[2]) * CFrame.Angles(0, 0, math.rad(90))
+		local rim = makePart({ Name = "Обод", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.6, 7.4, 7.4),
+			CFrame = at(origin, item.btn[1], 0.3, item.btn[2]) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(60, 60, 70), Material = Enum.Material.Metal, CanCollide = false, Parent = button })
+		local _ = rim
+		button:SetAttribute("BaseCF", button.CFrame)
 		button.Name = "Кнопка_" .. item.id
 		button:SetAttribute("ItemId", item.id)
 		addLabel(button, itemName(item, "en") .. "\n" .. priceText(item, "en"))
@@ -1439,6 +1452,9 @@ local function refreshButtons(plot)
 
 		button.Transparency = available and 0 or 1
 		button.CanCollide = false
+		for _, c in ipairs(button:GetChildren()) do
+			if c:IsA("BasePart") then c.Transparency = button.Transparency end
+		end
 		local gui = button:FindFirstChildWhichIsA("BillboardGui")
 		gui.Enabled = available
 		gui.Text.Text = itemName(item, plot.lang) .. "\n" .. priceText(item, plot.lang)
@@ -1464,7 +1480,7 @@ local function refreshButtons(plot)
 	end
 
 	if next_ then
-		plot.arrow.CFrame = next_.CFrame * CFrame.new(0, 7, 0) * CFrame.Angles(math.rad(180), 0, 0)
+		plot.arrow.CFrame = CFrame.new(next_.Position + Vector3.new(0, 7, 0)) * CFrame.Angles(math.rad(180), 0, 0)
 		plot.arrow.Transparency = 0
 	else
 		plot.arrow.Transparency = 1
@@ -1615,10 +1631,33 @@ local function tryBuy(player, plot, item)
 
 	money.Value -= item.cost
 	plot.owned[item.id] = true
+
+	-- анимация нажатия: кнопка проседает, вспышка искр и звон монет
+	local button = plot.buttons[item.id]
+	local base = button:GetAttribute("BaseCF")
+	local fx = makePart({ Size = Vector3.new(1, 1, 1), Transparency = 1, CanCollide = false, Position = button.Position + Vector3.new(0, 1, 0), Parent = plot.model })
+	local burst = Instance.new("ParticleEmitter")
+	burst.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	burst.Color = ColorSequence.new(Color3.fromRGB(255, 215, 80))
+	burst.LightEmission = 1
+	burst.Rate = 0
+	burst.Speed = NumberRange.new(10, 18)
+	burst.SpreadAngle = Vector2.new(70, 70)
+	burst.Lifetime = NumberRange.new(0.5, 0.9)
+	burst.Acceleration = Vector3.new(0, -30, 0)
+	burst.Parent = fx
+	burst:Emit(40)
+	playSound(CONFIG.SOUND_COLLECT, fx, 0.6)
+	task.delay(2, function() fx:Destroy() end)
+	TweenService:Create(button, TweenInfo.new(0.12), { CFrame = base * CFrame.new(-0.5, 0, 0), Color = Color3.fromRGB(80, 220, 100) }):Play()
+	task.delay(0.3, function()
+		button.CFrame = base
+		button.Color = Color3.fromRGB(215, 45, 55)
+		refreshButtons(plot)
+	end)
+
 	buildItem(plot, item, true)
 	recalcIncome(plot)
-	refreshButtons(plot)
-	playSound(CONFIG.SOUND_BUY, plot.buttons[item.id], 0.6)
 
 	if item.id == "stage" then task.spawn(fireworks, plot) end
 
@@ -2143,14 +2182,14 @@ Players.PlayerAdded:Connect(function() task.wait(3) refreshBoosts() end)
 Players.PlayerRemoving:Connect(function() task.defer(refreshBoosts) end)
 task.delay(3, refreshBoosts)
 
--- энергия падает: 100 -> 0 примерно за 20 минут; время в игре растёт
+-- энергия падает: 100 -> 0 за 10 минут; время в игре растёт
 task.spawn(function()
 	while true do
 		task.wait(6)
 		for _, player in ipairs(Players:GetPlayers()) do
 			local before = player:GetAttribute("Energy")
 			if before then
-				local e = math.max(0, before - 0.5)
+				local e = math.max(0, before - 1)   -- 1% каждые 6 сек = 100% за 10 минут
 				player:SetAttribute("Energy", e)
 				if (before > 50) ~= (e > 50) or (before > 20) ~= (e > 20) or (before > 0) ~= (e > 0) then
 					applySpeed(player)
