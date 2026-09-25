@@ -65,7 +65,7 @@ local CONFIG = {
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
 
 	-- Фото владельца на сцене. Когда загрузим картинку — впиши её ID сюда.
-	POSTER_IMAGE   = "",
+	POSTER_IMAGE   = "rbxassetid://90642660157791",   -- портрет Назара
 	-- Видео владельца на сцене (важнее фото). Впиши ID после загрузки
 	-- на create.roblox.com, например "rbxassetid://1234567890".
 	POSTER_VIDEO   = "",
