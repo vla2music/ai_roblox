@@ -450,7 +450,7 @@ chest.Touched:Connect(function(hit)
 	if lastFound[player] and os.clock() - lastFound[player] < 600 then return end
 	busy = true
 	lastFound[player] = os.clock()
-	local amount = math.max(500, math.floor((player:GetAttribute("NextCost") or 0) * 0.5))
+	local amount = math.max(500, math.floor(player:GetAttribute("ChestValue") or 0))   -- треть клуба
 	player.leaderstats.Coins.Value += amount
 	player:SetAttribute("ChestBonus", nil)
 	player:SetAttribute("ChestBonus", amount)   -- экран покажет «+N»
@@ -606,6 +606,25 @@ for n = 1, 10 do   -- 7 вдоль трассы, 3 по улицам кварт�
 	else
 		local sz = ({ 175, 235, 295 })[n - 7] + STREET_W / 2 + 2.5
 		pedestrian({ Vector3.new(282, walkY, sz), Vector3.new(963, walkY, sz) }, rng:NextInteger(5, 8))
+	end
+end
+
+-- Тоннели на обоих концах трассы: портал в скале, внутри темнота
+for _, e in ipairs({ { -160, -1 }, { 1420, 1 } }) do
+	local x, dir = e[1], e[2]
+	local cx = x + dir * 12
+	local rock = Color3.fromRGB(90, 85, 95)
+	part({ Size = Vector3.new(24, 30, 60), Position = Vector3.new(cx + dir * 4, RY + 15, ROAD_Z), Color = rock, Material = Enum.Material.Rock })
+	-- тёмная «глубина» внутри скалы
+	part({ Size = Vector3.new(26, 18, ROAD_W + 8), Position = Vector3.new(cx - dir * 1, RY + 9, ROAD_Z), Color = Color3.new(0, 0, 0), Material = Enum.Material.SmoothPlastic, CanCollide = false })
+	-- бетонная арка-портал
+	part({ Size = Vector3.new(2, 4, ROAD_W + 10), Position = Vector3.new(x, RY + 19, ROAD_Z), Color = Color3.fromRGB(160, 160, 170), Material = Enum.Material.Concrete })
+	for _, side in ipairs({ -1, 1 }) do
+		part({ Size = Vector3.new(2, 19, 4), Position = Vector3.new(x, RY + 9.5, ROAD_Z + side * (ROAD_W / 2 + 3)), Color = Color3.fromRGB(160, 160, 170), Material = Enum.Material.Concrete })
+	end
+	-- жёлтые огоньки над въездом
+	for k = -2, 2 do
+		part({ Size = Vector3.new(0.6, 0.6, 0.6), Position = Vector3.new(x - dir * 1.2, RY + 18, ROAD_Z + k * 5), Color = Color3.fromRGB(255, 190, 60), Material = Enum.Material.Neon, CanCollide = false })
 	end
 end
 

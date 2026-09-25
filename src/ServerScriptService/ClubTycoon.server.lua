@@ -63,7 +63,7 @@ local CONFIG = {
 	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
 	SOUND_COLLECT  = "rbxassetid://119832205290967",  -- звон монетки (загружен VLA2music)
 	-- Гул людей в клубе: включается с первым ПК и растёт с каждым новым.
-	SOUND_CROWD    = "",   -- чужой звук гула Roblox не разрешил (403); нужен свой
+	SOUND_CROWD    = "rbxassetid://101285875048662",  -- гул клуба (загружен VLA2music)
 	CROWD_VOLUME_MIN = 0.12,
 	CROWD_VOLUME_MAX = 0.45,
 
@@ -172,7 +172,7 @@ local ITEMS = {
 	{ group="champ2", name="Синие: ПК", en="Blue Team PC", kind="pcs", minTier=2,
 	  pcs={{20,-5},{28,-5},{36,-5},{44,-5},{52,-5}}, rot=0, color=Color3.fromRGB(70, 130, 255), btnDz=3.5 },
 
-	{ id="stream", name="Стримерская", en="Streamer Room", cost=60000, income=120, needs="champ2",
+	{ id="stream", trim=Color3.fromRGB(255, 30, 50), name="Стримерская", en="Streamer Room", cost=60000, income=120, needs="champ2",
 	  kind="room", rect={-60, 3, -40, 20}, doors={{"E", 12, 4}}, skip={W=true, S=true}, extra="stream",
 	  floor=Color3.fromRGB(60, 30, 70), btn={-36, 12} },
 	{ id="console", name="Комната PlayStation", en="PlayStation Room", cost=90000, income=160, needs="stream",
@@ -472,7 +472,7 @@ local INNER_COLOR = Color3.fromRGB(110, 100, 135)
 -- skip = {N=true,...} — сторону не строить (там уже есть другая стена)
 local NEON_TRIM = Color3.fromRGB(0, 230, 255)   -- неоновые плинтусы
 
-local function buildWalls(parent, origin, rect, doors, skip, height, color)
+local function buildWalls(parent, origin, rect, doors, skip, height, color, trim)
 	local x1, z1, x2, z2 = rect[1], rect[2], rect[3], rect[4]
 	skip = skip or {}
 	local sides = {
@@ -505,10 +505,10 @@ local function buildWalls(parent, origin, rect, doors, skip, height, color)
 				local len = (seg[2] - seg[1]) * S
 				if side.horizontal then
 					box(parent, origin, Vector3.new(len, height, 1), mid, height / 2, side.fixed, color)
-					box(parent, origin, Vector3.new(len, 0.35, 1.3), mid, 0.4, side.fixed, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
+					box(parent, origin, Vector3.new(len, 0.35, 1.3), mid, 0.4, side.fixed, trim or NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 				else
 					box(parent, origin, Vector3.new(1, height, len), side.fixed, height / 2, mid, color)
-					box(parent, origin, Vector3.new(1.3, 0.35, len), side.fixed, 0.4, mid, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
+					box(parent, origin, Vector3.new(1.3, 0.35, len), side.fixed, 0.4, mid, trim or NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 				end
 			end
 		end
@@ -546,6 +546,37 @@ local function tv(parent, origin, x, y, z, rot, width)
 		Material = Enum.Material.Glass,
 		Parent = parent,
 	})
+	-- на экране «передача»: переливающаяся картинка + бегущая строка
+	local screen = parent:GetChildren()[#parent:GetChildren()]
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.LightInfluence = 0
+		gui.Parent = screen
+		local f = Instance.new("Frame")
+		f.Size = UDim2.fromScale(1, 1)
+		f.BorderSizePixel = 0
+		f.BackgroundColor3 = Color3.new(1, 1, 1)
+		f.Parent = gui
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 140)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(60, 200, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 60)),
+		})
+		g.Parent = f
+		game:GetService("CollectionService"):AddTag(g, "GameScreen")
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.new(1, 0, 0.35, 0)
+		t.Position = UDim2.new(0, 0, 0.6, 0)
+		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.GothamBlack
+		t.TextScaled = true
+		t.TextColor3 = Color3.new(1, 1, 1)
+		t.TextStrokeTransparency = 0
+		t.Text = "📺 ESPORTS LIVE · NAZAR CLUB"
+		t.Parent = f
+	end
 end
 
 local builders = {}
@@ -929,6 +960,7 @@ function builders.outer(item, origin, model, lang)
 	end
 	-- перегородка между рядом из 4 ПК и стойкой админа
 	box(model, origin, Vector3.new(1, H - 2, 34 * S), -19, (H - 2) / 2, 3, INNER_COLOR)
+	box(model, origin, Vector3.new(1.3, 0.35, 34 * S), -19, 0.4, 3, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 
 	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25))
 	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30))
@@ -984,7 +1016,7 @@ function builders.room(item, origin, model, lang, plot)
 	local w, d = (r[3] - r[1]) * S, (r[4] - r[2]) * S
 	box(model, origin, Vector3.new(w, 0.2, d), (r[1] + r[3]) / 2, 0.1, (r[2] + r[4]) / 2,
 		item.floor or Color3.fromRGB(80, 70, 100), Enum.Material.SmoothPlastic, { CanCollide = false })
-	buildWalls(model, origin, r, item.doors, item.skip, CONFIG.WALL_HEIGHT - 2, INNER_COLOR)
+	buildWalls(model, origin, r, item.doors, item.skip, CONFIG.WALL_HEIGHT - 2, INNER_COLOR, item.trim)
 	if item.extra and builders[item.extra] then
 		builders[item.extra](item, origin, model, lang)
 	end
@@ -1277,8 +1309,8 @@ local function createPlot(index)
 	-- табло геймпасов у входа (как у популярных тайкунов)
 	local passCards = {}
 	local header = box(model, origin, Vector3.new(37, 3.4, 0.6), 21, 13.2, 45, Color3.fromRGB(25, 20, 40))
-	addSign(header, Enum.NormalId.Front, "⭐ GAMEPASSES ⭐", Color3.fromRGB(255, 215, 90))
-	box(model, origin, Vector3.new(38, 12, 0.4), 21, 6.5, 45.3, Color3.fromRGB(110, 75, 45), Enum.Material.Wood)
+	addSign(header, Enum.NormalId.Back, "⭐ GAMEPASSES ⭐", Color3.fromRGB(255, 215, 90))
+	box(model, origin, Vector3.new(38, 12, 0.4), 21, 6.5, 44.7, Color3.fromRGB(110, 75, 45), Enum.Material.Wood)
 	for _, x in ipairs({ 4, 38 }) do
 		box(model, origin, Vector3.new(1, 15, 1), x, 7.5, 45.4, Color3.fromRGB(90, 60, 35), Enum.Material.Wood)
 	end
@@ -1287,7 +1319,7 @@ local function createPlot(index)
 		panel.Name = "Геймпасс_" .. pass.key
 
 		local gui = Instance.new("SurfaceGui")
-		gui.Face = Enum.NormalId.Front
+		gui.Face = Enum.NormalId.Back   -- смотрит наружу, к дороге
 		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 		gui.PixelsPerStud = 40
 		gui.Parent = panel
@@ -1364,7 +1396,8 @@ local function createPlot(index)
 	local arrow = makePart({
 		Name = "Стрелка",
 		Size = Vector3.new(2, 2, 2),
-		Color = Color3.fromRGB(255, 220, 60),
+		Color = Color3.fromRGB(255, 230, 60),
+		Material = Enum.Material.Neon,
 		Transparency = 1,
 		CanCollide = false,
 		Parent = model,
@@ -1372,7 +1405,8 @@ local function createPlot(index)
 	local arrowMesh = Instance.new("SpecialMesh")
 	arrowMesh.MeshType = Enum.MeshType.FileMesh
 	arrowMesh.MeshId = "rbxassetid://1033714"     -- конус
-	arrowMesh.Scale = Vector3.new(1.4, 2.4, 1.4)
+	arrowMesh.Scale = Vector3.new(2.2, 3.6, 2.2)
+	arrowMesh.VertexColor = Vector3.new(1.5, 1.3, 0.3)
 	arrowMesh.Parent = arrow
 
 	local plot = {
@@ -1455,7 +1489,7 @@ local function refreshButtons(plot)
 		if available and not next_ then next_ = button end
 
 		button.Transparency = available and 0 or 1
-		button.CanCollide = false
+		button.CanCollide = available   -- стоишь на кнопке, а не проваливаешься
 		for _, c in ipairs(button:GetChildren()) do
 			if c:IsA("BasePart") then c.Transparency = button.Transparency end
 		end
@@ -1481,6 +1515,14 @@ local function refreshButtons(plot)
 		end
 		plot.owner:SetAttribute("NextName", nextItem and itemName(nextItem, plot.lang) or "")
 		plot.owner:SetAttribute("NextCost", nextItem and nextItem.cost or 0)
+		plot.owner:SetAttribute("NextPos", nextItem and plot.buttons[nextItem.id].Position or nil)
+		-- клад в городе: хватает на следующую треть клуба
+		local sum, n, started = 0, 0, false
+		for _, item in ipairs(ITEMS) do
+			if item == nextItem then started = true end
+			if started and n < math.ceil(#ITEMS / 3) then sum += item.cost n += 1 end
+		end
+		plot.owner:SetAttribute("ChestValue", sum)
 	end
 
 	if next_ then
@@ -1746,6 +1788,29 @@ local function dropCoin(plot, value)
 		Parent = plot.coinFolder,
 	})
 	coin:SetAttribute("Value", value)
+	-- гравировка «$» с обеих сторон и золотой ободок
+	for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right }) do
+		local g = Instance.new("SurfaceGui")
+		g.Face = face
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		g.PixelsPerStud = 60
+		g.Parent = coin
+		local ring = Instance.new("Frame")
+		ring.Size = UDim2.fromScale(0.82, 0.82)
+		ring.Position = UDim2.fromScale(0.09, 0.09)
+		ring.BackgroundTransparency = 1
+		ring.Parent = g
+		Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
+		local st = Instance.new("UIStroke") st.Color = Color3.fromRGB(190, 130, 20) st.Thickness = 4 st.Parent = ring
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.fromScale(1, 1)
+		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.GothamBlack
+		t.TextScaled = true
+		t.Text = "$"
+		t.TextColor3 = Color3.fromRGB(200, 140, 20)
+		t.Parent = ring
+	end
 
 	TweenService:Create(coin, TweenInfo.new(0.5, Enum.EasingStyle.Bounce), { CFrame = target }):Play()
 
@@ -1821,7 +1886,7 @@ end
 local function applySpeed(player)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		local speed = hasPass(player, "speed") and 28 or 16
+		local speed = hasPass(player, "speed") and 34 or 20
 		local e = player:GetAttribute("Energy") or 100
 		speed *= e > 50 and 1 or (e > 20 and 0.8 or (e > 0 and 0.6 or 0.45))
 		humanoid.WalkSpeed = speed
@@ -2092,8 +2157,11 @@ end
 -- МИНИ-ИГРЫ: «Лови кружки» и «Быстрый счёт». Раз в 5 минут каждая.
 -- Сервер сам проверяет время и потолок очков, чтобы нельзя было накрутить.
 local MINIGAMES = {
-	click = { maxScore = 90, perPoint = 3, time = 30 },   -- 30 сек, очко = доход за 3 сек
-	math  = { maxScore = 45, perPoint = 6, time = 60 },   -- 60 сек, пример = доход за 6 сек
+	-- Хорошая игра (≈25 кружков / ≈10 примеров) даёт примерно 3/4 цены
+	-- следующей покупки или минуту дохода — что больше. Раз в 5 минут
+	-- это заметная помощь, но не ломает прогресс.
+	click = { maxScore = 45, good = 25, time = 15 },
+	math  = { maxScore = 25, good = 10, time = 30 },
 }
 local MINIGAME_COOLDOWN = 300
 local MINIGAME_TIME = 60
@@ -2118,7 +2186,8 @@ miniGame.OnServerInvoke = function(player, action, name, score)
 		miniStart[player][name] = nil
 		if os.clock() - started < cfg.time - 3 then return nil end   -- слишком рано — не засчитываем
 		score = math.clamp(math.floor(tonumber(score) or 0), 0, cfg.maxScore)
-		local reward = math.floor(score * math.max(5, plot.income * cfg.perPoint))
+		local pool = math.max(plot.income * 60, (player:GetAttribute("NextCost") or 0) * 0.75, 50)
+		local reward = math.floor(pool * score / cfg.good)
 		player.leaderstats[CONFIG.CURRENCY_NAME].Value += reward
 		player:SetAttribute(key, os.time() + MINIGAME_COOLDOWN)
 		return reward
@@ -2309,9 +2378,24 @@ if #CONFIG.MUSIC_IDS > 0 then
 		local index = 0
 		while true do
 			index = index % #CONFIG.MUSIC_IDS + 1
+			music:Stop()
 			music.SoundId = CONFIG.MUSIC_IDS[index]
-			music:Play()
-			music.Ended:Wait()
+			-- ждём загрузку (не больше 10 сек), иначе пропускаем трек
+			local t0 = os.clock()
+			while not music.IsLoaded and os.clock() - t0 < 10 do task.wait(0.2) end
+			if music.IsLoaded and music.TimeLength > 0 then
+				music.TimePosition = 0
+				music:Play()
+				-- ждём конца трека по длине, а не по событию Ended
+				local length = music.TimeLength
+				local start = os.clock()
+				while os.clock() - start < length + 0.5 do
+					task.wait(0.5)
+					if not music.IsPlaying and os.clock() - start > 2 then break end
+				end
+			else
+				warn("[Музыка] трек не загрузился:", CONFIG.MUSIC_IDS[index])
+			end
 		end
 	end)
 end

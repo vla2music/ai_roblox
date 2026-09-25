@@ -551,3 +551,41 @@ end)
 
 player:GetAttributeChangedSignal("Energy"):Connect(refreshEnergy)
 refreshEnergy()
+
+-- Светящаяся «нить» от игрока к следующей кнопке покупки
+local beamTarget = Instance.new("Part")
+beamTarget.Anchored, beamTarget.CanCollide, beamTarget.CanQuery, beamTarget.CanTouch = true, false, false, false
+beamTarget.Transparency = 1
+beamTarget.Size = Vector3.new(0.2, 0.2, 0.2)
+beamTarget.Parent = workspace
+local a1 = Instance.new("Attachment", beamTarget)
+local beam = Instance.new("Beam")
+beam.Attachment1 = a1
+beam.Color = ColorSequence.new(Color3.fromRGB(255, 230, 60))
+beam.LightEmission = 1
+beam.Width0, beam.Width1 = 0.6, 0.6
+beam.FaceCamera = true
+beam.Texture = "rbxassetid://446111271"
+beam.TextureMode = Enum.TextureMode.Static
+beam.TextureLength = 3
+beam.TextureSpeed = 2
+beam.Transparency = NumberSequence.new(0.2)
+beam.Parent = beamTarget
+local function hookBeam()
+	local pos = player:GetAttribute("NextPos")
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if pos and root then
+		beamTarget.Position = pos + Vector3.new(0, 1.5, 0)
+		local a0 = root:FindFirstChild("ЛучКЦели") or Instance.new("Attachment")
+		a0.Name = "ЛучКЦели"
+		a0.Position = Vector3.new(0, -2, 0)
+		a0.Parent = root
+		beam.Attachment0 = a0
+		beam.Enabled = true
+	else
+		beam.Enabled = false
+	end
+end
+player:GetAttributeChangedSignal("NextPos"):Connect(hookBeam)
+player.CharacterAdded:Connect(function(c) c:WaitForChild("HumanoidRootPart") hookBeam() end)
+task.spawn(function() task.wait(2) hookBeam() end)

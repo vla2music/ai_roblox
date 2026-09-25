@@ -202,8 +202,8 @@ end
 --=========================================================================
 
 local GAMES = {
-	{ key = "click", icon = "🎯", ru = "Лови кружки", en = "Catch Coins", play = playClick, color = Color3.fromRGB(230, 90, 50), time = 30 },
-	{ key = "math",  icon = "🧮", ru = "Быстрый счёт", en = "Quick Math", play = playMath, color = Color3.fromRGB(70, 110, 230), time = 60 },
+	{ key = "click", icon = "🎯", ru = "Лови кружки", en = "Catch Coins", play = playClick, color = Color3.fromRGB(230, 90, 50), time = 15 },
+	{ key = "math",  icon = "🧮", ru = "Быстрый счёт", en = "Quick Math", play = playMath, color = Color3.fromRGB(70, 110, 230), time = 30 },
 }
 
 local side = Instance.new("Frame")
