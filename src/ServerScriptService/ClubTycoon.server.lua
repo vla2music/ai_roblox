@@ -38,6 +38,12 @@ local CONFIG = {
 	SOUND_BUY      = "",   -- звук покупки
 	SOUND_COLLECT  = "",   -- звук, когда забираешь деньги из сейфа
 
+	-- Монетный аппарат: сам выбрасывает монетки на площадку,
+	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
+	CLICK_COOLDOWN = 0.25,   -- как часто можно жать E (секунды)
+	CLICK_BONUS    = 0.3,    -- бонус за нажатие = доход в секунду * это число
+	MAX_COINS      = 40,     -- больше монет на площадке не лежит, они «слипаются»
+
 	-- ID геймпасса «x2 монеты». Пока 0 — геймпасс просто выключен.
 	-- Когда создашь геймпасс на сайте Roblox, впиши сюда его номер.
 	DOUBLE_CASH_GAMEPASS = 0,
@@ -57,7 +63,7 @@ local CONFIG = {
 --=========================================================================
 
 local ITEMS = {
-	{ id="reception", name="Ресепшн",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  0, 0,  36), kind="box",  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
+	{ id="reception", name="Ресепшн",              cost=0,     income=1,   needs=nil,         pos=Vector3.new(  0, 0,  22), kind="box",  size=Vector3.new(10,4,3),  color=Color3.fromRGB( 60,120,200) },
 	{ id="pc1",       name="Игровой ПК №1",        cost=25,    income=2,   needs="reception", pos=Vector3.new(-34, 0, -30), kind="desk", color=Color3.fromRGB(200, 60, 80) },
 	{ id="pc2",       name="Игровой ПК №2",        cost=120,   income=3,   needs="pc1",       pos=Vector3.new(-34, 0, -15), kind="desk", color=Color3.fromRGB(200, 60, 80) },
 	{ id="pc3",       name="Игровой ПК №3",        cost=300,   income=5,   needs="pc2",       pos=Vector3.new(-34, 0,   0), kind="desk", color=Color3.fromRGB(200, 60, 80) },
@@ -219,21 +225,27 @@ function builders.desk(item, origin)
 	})
 
 	makePart({ -- системник
-		Size = Vector3.new(1.8, 4, 3),
-		CFrame = origin * CFrame.new(3.6, 2, 0),
+		Size = Vector3.new(1.8, 2.8, 3),
+		CFrame = origin * CFrame.new(3.6, 1.4, 0),
 		Color = Color3.fromRGB(25, 25, 30),
 		Parent = model,
 	})
 
-	makePart({ -- кресло
-		Size = Vector3.new(3, 1, 3),
-		CFrame = origin * CFrame.new(0, 2, 4),
+	makePart({ -- ножка кресла
+		Size = Vector3.new(0.6, 1.5, 0.6),
+		CFrame = origin * CFrame.new(0, 0.75, 4),
+		Color = Color3.fromRGB(35, 35, 40),
+		Parent = model,
+	})
+	makePart({ -- сиденье
+		Size = Vector3.new(3, 0.8, 3),
+		CFrame = origin * CFrame.new(0, 1.9, 4),
 		Color = Color3.fromRGB(30, 30, 35),
 		Parent = model,
 	})
-	makePart({ -- спинка кресла
-		Size = Vector3.new(3, 4.5, 1),
-		CFrame = origin * CFrame.new(0, 4.2, 5.2),
+	makePart({ -- спинка стоит на заднем краю сиденья
+		Size = Vector3.new(3, 4, 0.8),
+		CFrame = origin * CFrame.new(0, 4.3, 5.1),
 		Color = item.color,
 		Parent = model,
 	})
@@ -423,23 +435,58 @@ local function createPlot(index)
 	})
 	local nameLabel = addLabel(pole, "СВОБОДНЫЙ УЧАСТОК", Color3.fromRGB(150, 255, 150))
 
-	-- сейф: сюда капает доход, отсюда игрок его забирает
-	local safe = makePart({
-		Name = "Сейф",
-		Size = Vector3.new(8, 8, 6),
-		CFrame = origin * CFrame.new(20, 4, 40),
+	-- монетный аппарат: выбрасывает монеты на площадку перед собой
+	local machine = makePart({
+		Name = "Аппарат",
+		Size = Vector3.new(7, 8, 3),
+		CFrame = origin * CFrame.new(18, 4, 42.5),
 		Color = Color3.fromRGB(240, 190, 50),
 		Material = Enum.Material.Metal,
 		Parent = model,
 	})
-	local safeLabel = addLabel(safe, "СЕЙФ\n0", Color3.fromRGB(255, 240, 150))
+	makePart({ -- светящийся «рот», откуда вылетают монеты
+		Size = Vector3.new(4, 1.2, 0.3),
+		CFrame = origin * CFrame.new(18, 2.5, 40.9),
+		Color = Color3.fromRGB(0, 255, 200),
+		Material = Enum.Material.Neon,
+		Parent = model,
+	})
+	local safeLabel = addLabel(machine, "МОНЕТНЫЙ АППАРАТ\nжми E!", Color3.fromRGB(255, 240, 150))
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Добыть монеты"
+	prompt.ObjectText = "Аппарат"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = machine
+
+	-- площадка, куда падают монеты
+	local coinPad = makePart({
+		Name = "ПлощадкаМонет",
+		Size = Vector3.new(12, 0.2, 9),
+		CFrame = origin * CFrame.new(18, 0.1, 35),
+		Color = Color3.fromRGB(90, 70, 20),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	local coinFolder = Instance.new("Folder")
+	coinFolder.Name = "Монеты"
+	coinFolder.Parent = model
 
 	local plot = {
 		index      = index,
 		model      = model,
 		origin     = origin,
 		spawnPad   = spawnPad,
-		safe       = safe,
+		machine    = machine,
+		prompt     = prompt,
+		coinPad    = coinPad,
+		coinFolder = coinFolder,
+		lastClick  = 0,
 		safeLabel  = safeLabel,
 		nameLabel  = nameLabel,
 		owner      = nil,
@@ -541,6 +588,7 @@ local function clearPlot(plot)
 	plot.storage = 0
 	plot.income = 0
 	plot.multiplier = 1
+	plot.coinFolder:ClearAllChildren()
 end
 
 --=========================================================================
@@ -571,6 +619,83 @@ local function tryBuy(player, plot, item)
 	playSound(CONFIG.SOUND_BUY, plot.buttons[item.id], 0.6)
 end
 
+--=========================================================================
+-- 7б. МОНЕТЫ НА ПЛОЩАДКЕ
+--=========================================================================
+
+local function updateStorage(plot)
+	local total = 0
+	for _, coin in ipairs(plot.coinFolder:GetChildren()) do
+		total += coin:GetAttribute("Value") or 0
+	end
+	plot.storage = total
+	if plot.owner then
+		local stats = plot.owner:FindFirstChild("Stats")
+		if stats then stats.Storage.Value = total end
+	end
+end
+
+local function pickUpCoin(plot, coin, player)
+	if coin:GetAttribute("Taken") then return end
+	coin:SetAttribute("Taken", true)
+
+	local value = coin:GetAttribute("Value") or 0
+	player.leaderstats[CONFIG.CURRENCY_NAME].Value += value
+	playSound(CONFIG.SOUND_COLLECT, plot.coinPad, 0.4)
+
+	-- монетка подпрыгивает и исчезает
+	local tween = TweenService:Create(coin, TweenInfo.new(0.25), {
+		CFrame = coin.CFrame + Vector3.new(0, 3, 0),
+		Transparency = 1,
+	})
+	tween:Play()
+	tween.Completed:Connect(function() coin:Destroy() end)
+	task.defer(updateStorage, plot)
+end
+
+local function dropCoin(plot, value)
+	value = math.max(1, math.floor(value))
+
+	-- площадка переполнена: добавляем стоимость к случайной монете
+	local existing = plot.coinFolder:GetChildren()
+	if #existing >= CONFIG.MAX_COINS then
+		local coin = existing[math.random(1, #existing)]
+		coin:SetAttribute("Value", (coin:GetAttribute("Value") or 0) + value)
+		updateStorage(plot)
+		return
+	end
+
+	local pad = plot.coinPad
+	local target = pad.CFrame * CFrame.new(
+		(math.random() - 0.5) * (pad.Size.X - 2),
+		0.6,
+		(math.random() - 0.5) * (pad.Size.Z - 2)
+	) * CFrame.Angles(0, 0, math.rad(90))   -- монетка лежит плашмя
+
+	local coin = makePart({
+		Name = "Монета",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.4, 1.6, 1.6),
+		CFrame = plot.machine.CFrame * CFrame.new(0, -1.5, -2) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 205, 40),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = plot.coinFolder,
+	})
+	coin:SetAttribute("Value", value)
+
+	TweenService:Create(coin, TweenInfo.new(0.5, Enum.EasingStyle.Bounce), { CFrame = target }):Play()
+
+	coin.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if player and player == plot.owner then
+			pickUpCoin(plot, coin, player)
+		end
+	end)
+
+	updateStorage(plot)
+end
+
 local function connectPlotTouches(plot)
 	for id, button in pairs(plot.buttons) do
 		local item = ITEM_BY_ID[id]
@@ -584,19 +709,19 @@ local function connectPlotTouches(plot)
 		end)
 	end
 
-	plot.safe.Touched:Connect(function(hit)
-		local player = Players:GetPlayerFromCharacter(hit.Parent)
-		if not player or plot.owner ~= player then return end
-		if plot.storage < 1 then return end
+	-- нажатие E у аппарата: бонусная монетка
+	plot.prompt.Triggered:Connect(function(player)
+		if player ~= plot.owner then return end
+		local now = os.clock()
+		if now - plot.lastClick < CONFIG.CLICK_COOLDOWN then return end
+		plot.lastClick = now
 
-		local amount = math.floor(plot.storage)
-		plot.storage -= amount
-		player.leaderstats[CONFIG.CURRENCY_NAME].Value += amount
+		dropCoin(plot, math.max(1, plot.income * CONFIG.CLICK_BONUS))
 
-		local stats = player:FindFirstChild("Stats")
-		if stats then stats.Storage.Value = plot.storage end
-		plot.safeLabel.Text = "СЕЙФ\n0"
-		playSound(CONFIG.SOUND_COLLECT, plot.safe, 0.5)
+		-- аппарат «вздрагивает»
+		local base = plot.machine.CFrame
+		plot.machine.CFrame = base * CFrame.new(0, 0.3, 0)
+		task.delay(0.08, function() plot.machine.CFrame = base end)
 	end)
 end
 
@@ -698,7 +823,6 @@ local function onPlayerRemoving(player)
 		plot.owner = nil
 		plot.nameLabel.Text = "СВОБОДНЫЙ УЧАСТОК"
 		plot.nameLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
-		plot.safeLabel.Text = "СЕЙФ\n0"
 		refreshButtons(plot)
 		plotByPlayer[player] = nil
 	end
@@ -721,17 +845,14 @@ for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)
 end
 
--- доход капает в сейф раз в секунду
+-- раз в секунду аппарат сам выбрасывает монету размером с доход
 task.spawn(function()
 	while true do
 		task.wait(1)
 		for _, plot in ipairs(plots) do
 			if plot.owner and plot.income > 0 then
-				plot.storage += plot.income
-				plot.safeLabel.Text = "СЕЙФ\n" .. short(plot.storage)
-
-				local stats = plot.owner:FindFirstChild("Stats")
-				if stats then stats.Storage.Value = plot.storage end
+				dropCoin(plot, plot.income)
+				plot.safeLabel.Text = "МОНЕТНЫЙ АППАРАТ\n+" .. short(plot.income) .. "/сек · жми E!"
 			end
 		end
 	end

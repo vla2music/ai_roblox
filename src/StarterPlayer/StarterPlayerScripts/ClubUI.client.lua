@@ -3,7 +3,7 @@
 	Клиентский скрипт. Кладётся в StarterPlayer > StarterPlayerScripts.
 
 	Показывает сверху экрана три цифры: сколько монет, сколько капает
-	в секунду и сколько лежит в сейфе.
+	в секунду и сколько монет лежит на площадке.
 ==========================================================================]]
 
 local Players = game:GetService("Players")
@@ -98,7 +98,7 @@ local storageLabel = makeRow(3, 15, Color3.fromRGB(200, 200, 215))
 local function refresh()
 	moneyLabel.Text   = short(money.Value) .. " " .. coins(money.Value)
 	incomeLabel.Text  = "+" .. short(income.Value) .. " в секунду"
-	storageLabel.Text = "В сейфе: " .. short(storage.Value) .. "  (подойди и забери)"
+	storageLabel.Text = "На площадке: " .. short(storage.Value) .. "  (беги собирай!)"
 end
 
 money:GetPropertyChangedSignal("Value"):Connect(refresh)
@@ -118,7 +118,7 @@ hint.Font = Enum.Font.GothamMedium
 hint.TextSize = 17
 hint.TextColor3 = Color3.fromRGB(255, 255, 255)
 hint.TextStrokeTransparency = 0.5
-hint.Text = "Наступи на красную кнопку, чтобы купить. Деньги забирай в СЕЙФЕ."
+hint.Text = "Жми E у жёлтого аппарата и собирай монеты! Красные кнопки — покупки."
 hint.Parent = screen
 
 task.delay(14, function()
