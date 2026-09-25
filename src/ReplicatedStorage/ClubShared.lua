@@ -17,6 +17,9 @@ Shared.GAMEPASSES = {
 	{ key = "speed",       id = 1998992427, price = 49,  icon = "⚡",
 	  ru = { "Быстрый бег", "Бегаешь в 1.7 раза\nбыстрее" },
 	  en = { "Speed Boost", "Run 1.7x\nfaster" } },
+	{ key = "pet",         id = 0, price = 149, icon = "🤖",
+	  ru = { "Робо-дрон", "Летает за тобой\nи светится!" },
+	  en = { "Robo Drone", "Follows you\nand glows!" } },
 }
 
 -- Пачки монет (можно покупать много раз) = доход клуба за N минут.

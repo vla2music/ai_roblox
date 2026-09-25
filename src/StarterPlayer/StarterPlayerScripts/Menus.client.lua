@@ -158,7 +158,7 @@ passLayout.Parent = passRow
 local passButtons = {}
 for _, pass in ipairs(Shared.GAMEPASSES) do
 	local tile = Instance.new("Frame")
-	tile.Size = UDim2.new(0.3, 0, 0.9, 0)
+	tile.Size = UDim2.new(0.23, 0, 0.9, 0)
 	tile.BackgroundColor3 = Color3.fromRGB(46, 42, 62)
 	tile.Parent = passRow
 	corner(tile, 12)
@@ -448,4 +448,16 @@ player:GetAttributeChangedSignal("ChestBonus"):Connect(function()
 	local st = Instance.new("UIStroke") st.Thickness = 3 st.Parent = msg
 	task.delay(2.5, function() msg:Destroy() end)
 	player:SetAttribute("ChestBonus", nil)
+end)
+
+player:GetAttributeChangedSignal("CatBonus"):Connect(function()
+	local v = player:GetAttribute("CatBonus")
+	if not v then return end
+	local msg = text(screen, {
+		Size = UDim2.new(0, 460, 0, 50), Position = UDim2.new(0.5, 0, 0.32, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+		Text = L("🐱 Мур! +", "🐱 Purr! +") .. short(v), TextColor3 = Color3.fromRGB(255, 150, 200),
+	})
+	local st = Instance.new("UIStroke") st.Thickness = 3 st.Parent = msg
+	task.delay(2, function() msg:Destroy() end)
+	player:SetAttribute("CatBonus", nil)
 end)

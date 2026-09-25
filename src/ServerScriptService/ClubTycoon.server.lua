@@ -554,6 +554,156 @@ local function simpleDesk(parent, cf, color)
 end
 
 -- Компьютеры: один или целый ряд
+--=========================================================================
+-- ЖИВЫЕ ЛЮДИ: посетители за компами, продавец, уборщик, кот
+--=========================================================================
+
+local ANIM_SIT  = "rbxassetid://2506281703"
+local ANIM_WALK = "rbxassetid://507777826"
+local SKIN = { Color3.fromRGB(234, 184, 146), Color3.fromRGB(198, 140, 100), Color3.fromRGB(141, 85, 56), Color3.fromRGB(255, 213, 170) }
+local CLOTH = { Color3.fromRGB(220, 50, 60), Color3.fromRGB(40, 120, 220), Color3.fromRGB(40, 170, 90), Color3.fromRGB(240, 200, 50),
+	Color3.fromRGB(150, 70, 200), Color3.fromRGB(30, 30, 35), Color3.fromRGB(240, 240, 245), Color3.fromRGB(255, 130, 40) }
+
+local function makeNPC(name, shirt, pants)
+	local ok, npc = pcall(function()
+		local d = Instance.new("HumanoidDescription")
+		local skin = SKIN[math.random(#SKIN)]
+		d.HeadColor, d.LeftArmColor, d.RightArmColor = skin, skin, skin
+		d.TorsoColor = shirt or CLOTH[math.random(#CLOTH)]
+		local legs = pants or CLOTH[math.random(#CLOTH)]
+		d.LeftLegColor, d.RightLegColor = legs, legs
+		return Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	end)
+	if not ok then return nil end
+	npc.Name = name
+	npc.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	for _, d in ipairs(npc:GetDescendants()) do
+		if d:IsA("BasePart") then d.CanCollide = false end
+	end
+	return npc
+end
+
+local function playAnim(npc, id, speed)
+	local animator = npc.Humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", npc.Humanoid)
+	local a = Instance.new("Animation")
+	a.AnimationId = id
+	local track = animator:LoadAnimation(a)
+	track.Looped = true
+	track:Play()
+	if speed then track:AdjustSpeed(speed) end
+	return track
+end
+
+-- Посетитель садится в кресло у компа и «играет»
+local function seatVisitor(pc, model)
+	local seat = pc:FindFirstChildWhichIsA("Seat", true)
+	if not seat or math.random() > 0.8 then return end   -- 80% компов заняты
+	local npc = makeNPC("Посетитель")
+	if not npc then return end
+	npc.HumanoidRootPart.Anchored = true
+	npc:PivotTo(seat.CFrame * CFrame.new(0, npc.Humanoid.HipHeight + 0.2, 0))
+	npc.Parent = model
+	playAnim(npc, ANIM_SIT)
+end
+
+-- Ходит по кругу через точки, пока его модель существует
+local function walkLoop(npc, points, speed)
+	local root = npc.HumanoidRootPart
+	root.Anchored = true
+	local track = playAnim(npc, ANIM_WALK, 0.9)
+	task.spawn(function()
+		local i = 1
+		while npc.Parent do
+			local target = points[i]
+			local from = root.Position
+			local dist = (target - from).Magnitude
+			if dist > 0.5 then
+				local tween = TweenService:Create(root, TweenInfo.new(dist / speed, Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(target, target + (target - from).Unit) })
+				root.CFrame = CFrame.lookAt(from, Vector3.new(target.X, from.Y, target.Z))
+				track:AdjustSpeed(0.9)
+				tween:Play()
+				tween.Completed:Wait()
+			end
+			track:AdjustSpeed(0)
+			task.wait(math.random(10, 30) / 10)
+			i = i % #points + 1
+		end
+	end)
+end
+
+local function npcPoint(origin, npc, x, z)
+	local root = npc.HumanoidRootPart
+	return at(origin, x, npc.Humanoid.HipHeight + root.Size.Y / 2, z).Position
+end
+
+-- Кот: гуляет по клубу, его можно погладить (E) — маленький бонус
+local function spawnCat(origin, model, plot)
+	local cat = Instance.new("Model")
+	cat.Name = "Кот"
+	local fur = Color3.fromRGB(240, 150, 60)
+	local body = makePart({ Size = Vector3.new(1.4, 1.2, 2.6), Color = fur, Material = Enum.Material.Fabric, CanCollide = false, Parent = cat })
+	local function add(size, offset, color, shape)
+		local p = makePart({ Size = size, Color = color or fur, Material = Enum.Material.Fabric, CanCollide = false, Parent = cat, CFrame = body.CFrame * offset })
+		if shape then p.Shape = shape end
+		local w = Instance.new("WeldConstraint") w.Part0 = body w.Part1 = p w.Parent = p
+		p.Anchored = false
+	end
+	add(Vector3.new(1.3, 1.2, 1.2), CFrame.new(0, 0.6, -1.6))                                     -- голова
+	add(Vector3.new(0.35, 0.5, 0.2), CFrame.new(-0.4, 1.35, -1.6))                                -- уши
+	add(Vector3.new(0.35, 0.5, 0.2), CFrame.new(0.4, 1.35, -1.6))
+	add(Vector3.new(0.2, 0.2, 0.1), CFrame.new(-0.3, 0.75, -2.22), Color3.fromRGB(40, 200, 90))  -- глаза
+	add(Vector3.new(0.2, 0.2, 0.1), CFrame.new(0.3, 0.75, -2.22), Color3.fromRGB(40, 200, 90))
+	add(Vector3.new(0.3, 0.3, 1.8), CFrame.new(0, 0.7, 1.9) * CFrame.Angles(math.rad(35), 0, 0))  -- хвост
+	for _, c in ipairs({ { -0.5, -0.9 }, { 0.5, -0.9 }, { -0.5, 0.9 }, { 0.5, 0.9 } }) do
+		add(Vector3.new(0.35, 0.7, 0.35), CFrame.new(c[1], -0.85, c[2]))                          -- лапы
+	end
+	body.Anchored = true
+	cat.PrimaryPart = body
+	cat.Parent = model
+	addLabel(body, "🐱", Color3.new(1, 1, 1), 2.2)
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = plot.lang == "ru" and "Погладить" or "Pet"
+	prompt.ObjectText = plot.lang == "ru" and "Кот" or "Cat"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 8
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = body
+	local last = {}
+	prompt.Triggered:Connect(function(player)
+		if last[player] and os.clock() - last[player] < 60 then return end
+		last[player] = os.clock()
+		local bonus = math.max(10, plot.income * 10)
+		player.leaderstats[CONFIG.CURRENCY_NAME].Value += bonus
+		player:SetAttribute("ChestBonus", nil)
+		player:SetAttribute("CatBonus", bonus)
+		local hearts = Instance.new("ParticleEmitter")
+		hearts.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		hearts.Color = ColorSequence.new(Color3.fromRGB(255, 90, 150))
+		hearts.Rate = 0
+		hearts.Speed = NumberRange.new(3, 5)
+		hearts.Parent = body
+		hearts:Emit(25)
+		task.delay(2, function() hearts:Destroy() end)
+	end)
+
+	local spots = { { -8, 20 }, { 2, 24 }, { 6, 8 }, { -4, 2 }, { 0, -6 }, { -6, 12 } }
+	task.spawn(function()
+		local i = 1
+		while cat.Parent do
+			local t = at(origin, spots[i][1], 1.6, spots[i][2]).Position
+			local from = body.Position
+			local tw = TweenService:Create(body, TweenInfo.new((t - from).Magnitude / 5, Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(t, t + (t - from).Unit) })
+			body.CFrame = CFrame.lookAt(from, Vector3.new(t.X, from.Y, t.Z))
+			tw:Play()
+			tw.Completed:Wait()
+			task.wait(math.random(20, 60) / 10)
+			i = math.random(#spots)
+		end
+	end)
+end
+
 function builders.pcs(item, origin, model, lang, plot)
 	local tier = math.max(plot and plot.pcTier or 1, item.minTier or 1)
 	local tierColor = Shared.PC_TIERS[tier].color
@@ -570,6 +720,33 @@ function builders.pcs(item, origin, model, lang, plot)
 				end
 			end
 			pc.Parent = model
+			seatVisitor(pc, model)
+			-- экраны «с игрой» (переливы анимирует Rides.client.lua)
+			for _, part in ipairs(pc:GetDescendants()) do
+				if part:IsA("BasePart") and part.Name == "Screen" then
+					local gui = Instance.new("SurfaceGui")
+					gui.LightInfluence = 0
+					gui.Face = Enum.NormalId.Front
+					gui.Parent = part
+					local f = Instance.new("Frame")
+					f.Size = UDim2.fromScale(1, 1)
+					f.BorderSizePixel = 0
+					f.BackgroundColor3 = Color3.new(1, 1, 1)
+					f.Parent = gui
+					local g = Instance.new("UIGradient")
+					g.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, color),
+						ColorSequenceKeypoint.new(0.5, Color3.fromHSV(math.random(), 0.8, 1)),
+						ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 40)),
+					})
+					g.Parent = f
+					game:GetService("CollectionService"):AddTag(g, "GameScreen")
+					local backGui = gui:Clone()
+					backGui.Face = Enum.NormalId.Back
+					backGui.Parent = part
+					game:GetService("CollectionService"):AddTag(backGui.Frame.UIGradient, "GameScreen")
+				end
+			end
 			-- с уровня 2: светящаяся подсветка под столом цвета уровня
 			if tier >= 2 then
 				local glow = makePart({
@@ -694,7 +871,24 @@ function builders.outer(item, origin, model, lang)
 end
 
 -- Комната: пол своего цвета + стены с дверью + начинка
-function builders.room(item, origin, model, lang)
+function builders.room(item, origin, model, lang, plot)
+	if item.id == "hall" then
+		task.defer(function()
+			local npc = makeNPC("Уборщик", Color3.fromRGB(40, 150, 200), Color3.fromRGB(40, 60, 90))
+			if not npc then return end
+			local pts = {}
+			for _, xz in ipairs({ { 16, 3 }, { 56, 3 }, { 56, 12.5 }, { 16, 12.5 }, { 16, 21.5 }, { 56, 21.5 }, { 56, 31 }, { 16, 31 } }) do
+				table.insert(pts, npcPoint(origin, npc, xz[1], xz[2]))
+			end
+			npc:PivotTo(CFrame.new(pts[1]))
+			npc.Parent = model
+			-- швабра
+			local mop = makePart({ Size = Vector3.new(0.3, 5, 0.3), Color = Color3.fromRGB(150, 110, 70), CanCollide = false, Anchored = false, Parent = npc })
+			mop.CFrame = npc.RightHand.CFrame * CFrame.new(0, -1, -0.5) * CFrame.Angles(math.rad(20), 0, 0)
+			local w = Instance.new("WeldConstraint") w.Part0 = npc.RightHand w.Part1 = mop w.Parent = mop
+			walkLoop(npc, pts, 6)
+		end)
+	end
 	local r = item.rect
 	local w, d = (r[3] - r[1]) * S, (r[4] - r[2]) * S
 	box(model, origin, Vector3.new(w, 0.2, d), (r[1] + r[3]) / 2, 0.1, (r[2] + r[4]) / 2,
@@ -767,7 +961,8 @@ function builders.vip(item, origin, model)
 end
 
 -- Лаунж: диван, столик, телевизор и кресло
-function builders.lounge(item, origin, model)
+function builders.lounge(item, origin, model, lang, plot)
+	if plot then spawnCat(origin, model, plot) end
 	sofa(model, origin, 0, 14, -90, Color3.fromRGB(70, 50, 110))
 	box(model, origin, Vector3.new(3, 1.6, 7), 5.5, 0.8, 14, Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
 	tv(model, origin, 10.5, 5, 14, 90, 10)
@@ -804,6 +999,15 @@ function builders.shops(item, origin, model)
 		else
 			makePart({ Size = Vector3.new(4, 8, 3), CFrame = cf * CFrame.new(0, 4, 0), Color = Color3.fromRGB(230, 150, 30), Parent = model })
 		end
+	end
+	-- продавец стоит рядом с автоматами
+	local npc = makeNPC("Продавец", Color3.fromRGB(230, 60, 60), Color3.fromRGB(40, 40, 50))
+	if npc then
+		npc.HumanoidRootPart.Anchored = true
+		local pos = npcPoint(origin, npc, -12, -5.75)
+		npc:PivotTo(CFrame.lookAt(pos, pos + Vector3.new(1, 0, 0)))
+		npc.Parent = model
+		addLabel(npc.Head, "🍕 SHOP", Color3.fromRGB(255, 200, 80), 2)
 	end
 end
 
@@ -969,10 +1173,10 @@ local function createPlot(index)
 
 	-- табло геймпасов у входа (как у популярных тайкунов)
 	local passCards = {}
-	local header = box(model, origin, Vector3.new(30, 3.4, 0.6), 18, 13.2, 45, Color3.fromRGB(25, 20, 40))
+	local header = box(model, origin, Vector3.new(37, 3.4, 0.6), 21, 13.2, 45, Color3.fromRGB(25, 20, 40))
 	addSign(header, Enum.NormalId.Front, "⭐ GAMEPASSES ⭐", Color3.fromRGB(255, 215, 90))
-	box(model, origin, Vector3.new(31, 12, 0.4), 18, 6.5, 45.3, Color3.fromRGB(110, 75, 45), Enum.Material.Wood)
-	for _, x in ipairs({ 7.5, 28.5 }) do
+	box(model, origin, Vector3.new(38, 12, 0.4), 21, 6.5, 45.3, Color3.fromRGB(110, 75, 45), Enum.Material.Wood)
+	for _, x in ipairs({ 4, 38 }) do
 		box(model, origin, Vector3.new(1, 15, 1), x, 7.5, 45.4, Color3.fromRGB(90, 60, 35), Enum.Material.Wood)
 	end
 	for i, pass in ipairs(CONFIG.GAMEPASSES) do
