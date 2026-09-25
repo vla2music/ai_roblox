@@ -122,17 +122,17 @@ local ITEMS = {
 	{ id="pc4", name="Игровой ПК №4", en="Gaming PC #4", cost=160, income=4, needs="pc3",   kind="pcs", pcs={{-24,-11}}, rot=-90, btn={-30,-11} },
 
 	{ id="walls",  name="Стены клуба", en="Club Walls",  cost=250,  income=3, needs="pc4",  kind="outer", btn={8, 28} },
-	{ id="shop",   name="Магазин",     en="Snack Shop",  cost=400,  income=6, needs="walls",
-	  kind="model", model="vending", pos={-15, -6}, rot=90, btn={-9, -4} },
+	{ id="shop",   name="Два магазина", en="Two Snack Shops", cost=400, income=6, needs="walls",
+	  kind="shops", btn={-9, -4} },
 
 	{ id="hall",  name="Общий зал", en="Main Hall", cost=600, income=4, needs="shop",
-	  kind="room", rect={13, 0.5, 50, 33}, doors={{"W", 31, 4}}, floor=Color3.fromRGB(70, 60, 95), btn={8, 31} },
+	  kind="room", rect={13, 0.5, 60, 35}, doors={{"W", 31, 4}}, skip={E=true, S=true}, floor=Color3.fromRGB(70, 60, 95), btn={8, 31} },
 	{ id="hall1", name="Ряд компов 1", en="PC Row 1", cost=900,  income=12, needs="hall",  kind="pcs",
-	  pcs={{17,8},{24,8},{31,8},{38,8},{45,8}},    rot=0, btn={31, 3} },
+	  pcs={{20,8},{28,8},{36,8},{44,8},{52,8}},    rot=0, btn={36, 3} },
 	{ id="hall2", name="Ряд компов 2", en="PC Row 2", cost=1600, income=18, needs="hall1", kind="pcs",
-	  pcs={{17,17},{24,17},{31,17},{38,17},{45,17}}, rot=0, btn={31, 12.5} },
+	  pcs={{20,17},{28,17},{36,17},{44,17},{52,17}}, rot=0, btn={36, 12.5} },
 	{ id="hall3", name="Ряд компов 3", en="PC Row 3", cost=2800, income=26, needs="hall2", kind="pcs",
-	  pcs={{17,26},{24,26},{31,26},{38,26},{45,26}}, rot=0, btn={31, 21.5} },
+	  pcs={{20,26},{28,26},{36,26},{44,26},{52,26}}, rot=0, btn={36, 21.5} },
 
 	{ id="toilet", name="Туалет", en="Restroom", cost=3500, income=26, needs="hall3",
 	  kind="room", rect={-31, 20, -19, 35}, doors={{"E", 25, 4}}, skip={S=true}, extra="toilet",
@@ -149,11 +149,12 @@ local ITEMS = {
 	  floor=Color3.fromRGB(40, 45, 55), btn={-35, 16} },
 
 	{ id="champ",  name="Зал для чемпионатов", en="Championship Room", cost=22000, income=10, needs="server",
-	  kind="room", rect={12, -20, 45, 0}, doors={{"W", -10, 4}}, skip={S=true}, floor=Color3.fromRGB(40, 55, 110), btn={7, -10} },
-	{ id="champ1", name="Турнирный ряд 1", en="Tournament Row 1", cost=30000, income=60, needs="champ", kind="pcs",
-	  pcs={{16.5,-13},{23,-13},{29.5,-13},{36,-13},{42.5,-13}}, rot=0, btn={29.5, -17.5} },
-	{ id="champ2", name="Турнирный ряд 2", en="Tournament Row 2", cost=40000, income=80, needs="champ1", kind="pcs",
-	  pcs={{16.5,-4},{23,-4},{29.5,-4},{36,-4},{42.5,-4}}, rot=0, btn={29.5, -8.5} },
+	  kind="room", rect={12, -20, 60, 0}, doors={{"W", -10, 4}}, skip={S=true, E=true}, extra="champDivider",
+	  floor=Color3.fromRGB(40, 55, 110), btn={7, -10} },
+	{ id="champ1", name="Команда красных (5 ПК)", en="Red Team (5 PCs)", cost=30000, income=60, needs="champ", kind="pcs",
+	  pcs={{20,-12},{28,-12},{36,-12},{44,-12},{52,-12}}, rot=180, color=Color3.fromRGB(230, 70, 70), btn={7, -15} },
+	{ id="champ2", name="Команда синих (5 ПК)", en="Blue Team (5 PCs)", cost=40000, income=80, needs="champ1", kind="pcs",
+	  pcs={{20,-5},{28,-5},{36,-5},{44,-5},{52,-5}}, rot=0, color=Color3.fromRGB(70, 130, 255), btn={7, -4} },
 
 	{ id="stream", name="Стримерская", en="Streamer Room", cost=60000, income=120, needs="champ2",
 	  kind="room", rect={-60, 3, -40, 20}, doors={{"E", 12, 4}}, skip={W=true, S=true}, extra="stream",
@@ -517,6 +518,9 @@ function builders.outer(item, origin, model, lang)
 		local door = box(model, origin, size, x, 4.5, z, color, Enum.Material.Wood)
 		addLabel(door, text, Color3.fromRGB(255, 230, 150), 6)
 	end
+	-- перегородка между рядом из 4 ПК и стойкой админа
+	box(model, origin, Vector3.new(1, H - 2, 34 * S), -19, (H - 2) / 2, 3, INNER_COLOR)
+
 	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25))
 	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30))
 	for _, z in ipairs({ -24, -8, 20 }) do
@@ -615,9 +619,9 @@ end
 
 -- Лаунж: диван, столик, телевизор и кресло
 function builders.lounge(item, origin, model)
-	sofa(model, origin, 0, 14, 90, Color3.fromRGB(70, 50, 110))
+	sofa(model, origin, 0, 14, -90, Color3.fromRGB(70, 50, 110))
 	box(model, origin, Vector3.new(3, 1.6, 7), 5.5, 0.8, 14, Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
-	tv(model, origin, 10.5, 5, 14, -90, 10)
+	tv(model, origin, 10.5, 5, 14, 90, 10)
 	box(model, origin, Vector3.new(1, 3.5, 1), 10.5, 1.75, 14, Color3.fromRGB(30, 30, 35))
 	local chair = cloneTemplate("chair")
 	if chair then
@@ -628,7 +632,7 @@ end
 
 -- Диван и стулья возле сцены
 function builders.sofaset(item, origin, model)
-	sofa(model, origin, -2, -17, 180, Color3.fromRGB(110, 40, 60))
+	sofa(model, origin, -2, -17, 0, Color3.fromRGB(110, 40, 60))
 	local chair = cloneTemplate("chair")
 	for i = 0, 2 do
 		local x = -6 + i * 4
@@ -640,12 +644,51 @@ function builders.sofaset(item, origin, model)
 	end
 end
 
--- Сцена с фотографией владельца
+-- Два магазина у перегородки
+function builders.shops(item, origin, model)
+	for _, z in ipairs({ -9, -2.5 }) do
+		local cf = at(origin, -15, 0, z) * CFrame.Angles(0, math.rad(90), 0)
+		local m = cloneTemplate("vending")
+		if m then
+			m:PivotTo(cf)
+			m.Parent = model
+		else
+			makePart({ Size = Vector3.new(4, 8, 3), CFrame = cf * CFrame.new(0, 4, 0), Color = Color3.fromRGB(230, 150, 30), Parent = model })
+		end
+	end
+end
+
+-- Чемпионатная: команды сидят лицом друг к другу, между столами — перегородка,
+-- чтобы соперники не видели чужие экраны
+function builders.champDivider(item, origin, model, lang)
+	box(model, origin, Vector3.new(44 * S, 8, 0.6), 36, 4, -8.5, Color3.fromRGB(25, 25, 35))
+	local red = box(model, origin, Vector3.new(10, 3, 0.3), 36, 10, -19.4, Color3.fromRGB(120, 20, 20))
+	addSign(red, Enum.NormalId.Back, lang == "ru" and "КРАСНЫЕ" or "RED TEAM", Color3.fromRGB(255, 200, 200))
+	local vs = box(model, origin, Vector3.new(4, 3, 0.3), 36, 9.5, -8.5, Color3.fromRGB(25, 25, 35))
+	addSign(vs, Enum.NormalId.Back, "5 × 5", Color3.fromRGB(255, 230, 120))
+	addSign(vs, Enum.NormalId.Front, "5 × 5", Color3.fromRGB(255, 230, 120))
+end
+
+-- Сцена: подиум со ступеньками, занавес, большой портрет владельца, прожекторы
 function builders.stage(item, origin, model, lang)
-	box(model, origin, Vector3.new(16 * S, 1.5, 10 * S), -5, 0.75, -30, Color3.fromRGB(40, 35, 60), Enum.Material.Wood)
-	box(model, origin, Vector3.new(16 * S, 0.3, 0.4), -5, 1.6, -25, Color3.fromRGB(255, 200, 80), Enum.Material.Neon)
-	-- экран вертикальный, как видео (768x1120)
-	local frame = box(model, origin, Vector3.new(7, 10.2, 0.5), -5, 7.5, -34.3, Color3.fromRGB(20, 20, 25))
+	local x0, z0 = -5, -30
+	-- подиум и ступеньки
+	box(model, origin, Vector3.new(16 * S, 3, 9 * S), x0, 1.5, z0 - 0.5, Color3.fromRGB(45, 35, 70), Enum.Material.Wood)
+	box(model, origin, Vector3.new(8 * S, 1.5, 1.5 * S), x0, 0.75, z0 + 4.8, Color3.fromRGB(60, 50, 90), Enum.Material.Wood)
+	box(model, origin, Vector3.new(16 * S, 0.3, 0.3), x0, 3.1, z0 + 4, Color3.fromRGB(255, 200, 80), Enum.Material.Neon)
+	-- задник
+	local back = box(model, origin, Vector3.new(16 * S, 16, 0.6), x0, 11, -34.3, Color3.fromRGB(30, 25, 45))
+	-- занавес по бокам
+	for _, dx in ipairs({ -7, 7 }) do
+		box(model, origin, Vector3.new(3.5 * S, 16, 1), x0 + dx, 8, -33.6, Color3.fromRGB(150, 20, 40), Enum.Material.Fabric)
+	end
+	-- надпись над портретом
+	local title = box(model, origin, Vector3.new(14, 2.4, 0.2), x0, 17.2, -33.9, Color3.fromRGB(30, 25, 45))
+	addSign(title, Enum.NormalId.Back, lang == "ru" and "ВЛАДЕЛЕЦ КЛУБА" or "CLUB OWNER", Color3.fromRGB(255, 215, 120))
+	-- золотая рамка и портрет
+	box(model, origin, Vector3.new(9.4, 12.6, 0.3), x0, 9.6, -33.85, Color3.fromRGB(230, 180, 60), Enum.Material.Metal)
+	local frame = box(model, origin, Vector3.new(8.6, 11.8, 0.3), x0, 9.6, -33.7, Color3.fromRGB(20, 20, 25))
+	local _ = back
 	if CONFIG.POSTER_VIDEO ~= "" then
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = Enum.NormalId.Back
@@ -705,17 +748,18 @@ function builders.stage(item, origin, model, lang)
 	else
 		addSign(frame, Enum.NormalId.Back, T(lang, "poster"), Color3.fromRGB(255, 220, 150))
 	end
-	-- прожекторы
-	for _, x in ipairs({ -11, 1 }) do
-		local lamp = box(model, origin, Vector3.new(1.5, 1.5, 1.5), x, 12, -26, Color3.fromRGB(30, 30, 30), Enum.Material.Metal)
+	-- прожекторы разных цветов
+	for i, x in ipairs({ -11, -5, 1 }) do
+		local lamp = box(model, origin, Vector3.new(1.5, 1.5, 1.5), x, 15, -26, Color3.fromRGB(30, 30, 30), Enum.Material.Metal)
 		local spot = Instance.new("SpotLight")
 		spot.Face = Enum.NormalId.Bottom
-		spot.Angle = 70
-		spot.Range = 20
+		spot.Angle = 60
+		spot.Range = 26
 		spot.Brightness = 3
-		spot.Color = Color3.fromRGB(255, 220, 180)
+		spot.Color = ({ Color3.fromRGB(255, 120, 200), Color3.fromRGB(255, 230, 180), Color3.fromRGB(120, 200, 255) })[i]
 		spot.Parent = lamp
 	end
+	box(model, origin, Vector3.new(16 * S, 0.8, 0.8), x0, 15.8, -26, Color3.fromRGB(40, 40, 45), Enum.Material.Metal) -- ферма
 end
 
 --=========================================================================
@@ -1021,6 +1065,11 @@ local function tryBuy(player, plot, item)
 	recalcIncome(plot)
 	refreshButtons(plot)
 	playSound(CONFIG.SOUND_BUY, plot.buttons[item.id], 0.6)
+
+	-- последняя покупка этажа: клиент покажет праздничный экран
+	if item.id == ITEMS[#ITEMS].id then
+		player:SetAttribute("Floor1Done", true)
+	end
 end
 
 --=========================================================================
@@ -1203,6 +1252,7 @@ local function onPlayerAdded(player)
 
 	recalcIncome(plot)
 	refreshButtons(plot)
+	player:SetAttribute("Floor1Done", plot.owned[ITEMS[#ITEMS].id] == true)
 
 	local function placeCharacter(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
@@ -1218,6 +1268,7 @@ local function onPlayerAdded(player)
 			if not player:GetAttribute("DevReset") then return end
 			player:SetAttribute("DevReset", false)
 			clearPlot(plot)
+			player:SetAttribute("Floor1Done", false)
 			money.Value = CONFIG.START_MONEY
 			recalcIncome(plot)
 			refreshButtons(plot)
