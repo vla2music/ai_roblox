@@ -117,7 +117,7 @@ end
 -- и вывески, повёрнутые к клубам
 --=========================================================================
 
-part({ Size = Vector3.new(700, 1, 200), Position = Vector3.new(620, GROUND + 0.3, 270), Color = Color3.fromRGB(30, 30, 38), Material = Enum.Material.Asphalt })
+
 
 local NEON = {
 	Color3.fromRGB(255, 50, 200), Color3.fromRGB(0, 230, 255), Color3.fromRGB(170, 80, 255),
@@ -378,25 +378,66 @@ end)
 -- перепрятывается, у каждого игрока перерыв 10 минут.
 --=========================================================================
 
-local SPOTS = {}
-for x = 355, 885, 58 do
-	for _, z in ipairs({ 235, 295 }) do table.insert(SPOTS, Vector3.new(x, GROUND + 2.5, z)) end
+local SPOTS = {}   -- промежутки между домами в каждом ряду
+for x = 359, 881, 58 do
+	for _, z in ipairs({ 205, 265, 325 }) do table.insert(SPOTS, Vector3.new(x, 0, z)) end
 end
-local chest = part({ Name = "ЗолотойСундук", Size = Vector3.new(4, 3, 3), Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Metal, Reflectance = 0.3, CanCollide = false })
-part({ Parent = chest, Size = Vector3.new(4.2, 0.5, 3.2), Color = Color3.fromRGB(120, 70, 30), Material = Enum.Material.Wood, CanCollide = false })
+
+-- Сундук: деревянный корпус, золотые оковки, выпуклая крышка, замок,
+-- внутри светятся монеты. Все детали двигаются вместе (PivotTo).
+local chestModel = Instance.new("Model")
+chestModel.Name = "ЗолотойСундук"
+chestModel.Parent = city
+local WOOD, GOLD = Color3.fromRGB(110, 60, 30), Color3.fromRGB(255, 195, 50)
+local function cpart(size, cf, color, mat, shape)
+	local p = part({ Parent = chestModel, Size = size, CFrame = cf, Color = color, Material = mat, CanCollide = false })
+	if shape then p.Shape = shape end
+	return p
+end
+local c0 = CFrame.new(0, 500, 0)
+local chest = cpart(Vector3.new(5, 3, 3.4), c0 * CFrame.new(0, 1.5, 0), WOOD, Enum.Material.WoodPlanks)          -- корпус
+cpart(Vector3.new(3.4, 5, 3.4), c0 * CFrame.new(0, 3, 0) * CFrame.Angles(0, 0, math.rad(90)), WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)  -- крышка-полукруг
+for _, dx in ipairs({ -1.9, 1.9 }) do                                                                            -- золотые обручи
+	cpart(Vector3.new(0.35, 3.1, 3.5), c0 * CFrame.new(dx, 1.5, 0), GOLD, Enum.Material.Metal)
+	cpart(Vector3.new(3.5, 0.35, 3.5), c0 * CFrame.new(dx, 3, 0) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, Enum.PartType.Cylinder)
+end
+cpart(Vector3.new(5.1, 0.35, 3.5), c0 * CFrame.new(0, 0.2, 0), GOLD, Enum.Material.Metal)                        -- нижняя кайма
+cpart(Vector3.new(5.1, 0.3, 3.5), c0 * CFrame.new(0, 3, 0), GOLD, Enum.Material.Metal)                           -- стык крышки
+cpart(Vector3.new(0.9, 1.1, 0.3), c0 * CFrame.new(0, 2.7, -1.8), GOLD, Enum.Material.Metal)                      -- замок
+cpart(Vector3.new(0.3, 0.4, 0.1), c0 * CFrame.new(0, 2.6, -1.97), Color3.fromRGB(40, 25, 10))                   -- скважина
+for k = 1, 6 do                                                                                                  -- монеты сверху
+	cpart(Vector3.new(0.25, 0.9, 0.9), c0 * CFrame.new(-1.6 + k * 0.5, 4.75 + (k % 2) * 0.15, (k % 3 - 1) * 0.5) * CFrame.Angles(0, 0, math.rad(90)),
+		Color3.fromRGB(255, 220, 60), Enum.Material.Neon, Enum.PartType.Cylinder)
+end
+chestModel.PrimaryPart = chest
+chestModel.WorldPivot = c0
 local sparkle = Instance.new("Sparkles")
 sparkle.SparkleColor = Color3.fromRGB(255, 220, 80)
 sparkle.Parent = chest
 local glow = Instance.new("PointLight")
 glow.Color = Color3.fromRGB(255, 210, 80)
-glow.Range = 14
+glow.Range = 16
+glow.Brightness = 2
 glow.Parent = chest
+
+local groundParams = RaycastParams.new()
+groundParams.FilterType = Enum.RaycastFilterType.Include
+groundParams.FilterDescendantsInstances = { workspace.Terrain }
+
+local function setChestVisible(on)
+	for _, d in ipairs(chestModel:GetDescendants()) do
+		if d:IsA("BasePart") then d.Transparency = on and 0 or 1 end
+	end
+	sparkle.Enabled = on
+	glow.Enabled = on
+end
 
 local function hideChest()
 	local p = SPOTS[rng:NextInteger(1, #SPOTS)]
-	chest.CFrame = CFrame.new(p) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0)
-	chest.Transparency = 0
-	chest:GetChildren()[1].CFrame = chest.CFrame * CFrame.new(0, 1.7, 0)
+	local hit = workspace:Raycast(p + Vector3.new(0, 80, 0), Vector3.new(0, -160, 0), groundParams)
+	local y = hit and hit.Position.Y or GROUND
+	chestModel:PivotTo(CFrame.new(p.X, y, p.Z) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0))
+	setChestVisible(true)
 end
 hideChest()
 
@@ -413,7 +454,7 @@ chest.Touched:Connect(function(hit)
 	player.leaderstats.Coins.Value += amount
 	player:SetAttribute("ChestBonus", nil)
 	player:SetAttribute("ChestBonus", amount)   -- экран покажет «+N»
-	chest.Transparency = 1
+	setChestVisible(false)
 	task.wait(3)
 	hideChest()
 	busy = false
@@ -487,10 +528,36 @@ for i = 0, 5 do
 		if lemonadePrompt then lemonadePrompt(fridge, kind, 1, nil) end
 	end
 end
--- дороги от трассы в киберквартал
-for _, x in ipairs({ 300, 940 }) do
-	part({ Size = Vector3.new(14, 1, 50), Position = Vector3.new(x, RY, 175), Color = Color3.fromRGB(38, 38, 44), Material = Enum.Material.Asphalt })
+-- Улицы киберквартала: две поперечные (x=290 и x=955) от трассы вглубь
+-- и три продольные между рядами домов. С разметкой, тротуарами, фонарями.
+local STREET_W = 14
+local function street(x1, z1, x2, z2)
+	local horizontal = z1 == z2
+	local len = horizontal and math.abs(x2 - x1) or math.abs(z2 - z1)
+	local c = Vector3.new((x1 + x2) / 2, RY, (z1 + z2) / 2)
+	local size = horizontal and Vector3.new(len + STREET_W, 1, STREET_W) or Vector3.new(STREET_W, 1, len + STREET_W)
+	part({ Size = size, Position = c, Color = Color3.fromRGB(38, 38, 44), Material = Enum.Material.Asphalt })
+	-- осевая прерывистая
+	for d = -len / 2 + 6, len / 2 - 6, 14 do
+		local pos = horizontal and c + Vector3.new(d, 0.55, 0) or c + Vector3.new(0, 0.55, d)
+		part({ Size = horizontal and Vector3.new(7, 0.1, 0.5) or Vector3.new(0.5, 0.1, 7), Position = pos, Color = Color3.fromRGB(240, 240, 240), CanCollide = false })
+	end
+	-- тротуары и фонари по обеим сторонам
+	for _, side in ipairs({ -1, 1 }) do
+		local off = side * (STREET_W / 2 + 2.5)
+		local sw = horizontal and Vector3.new(len + STREET_W + 10, 1.4, 5) or Vector3.new(5, 1.4, len + STREET_W + 10)
+		part({ Size = sw, Position = c + (horizontal and Vector3.new(0, 0.2, off) or Vector3.new(off, 0.2, 0)), Color = Color3.fromRGB(150, 150, 160), Material = Enum.Material.Concrete })
+		for d = -len / 2, len / 2, 40 do
+			local lp = c + (horizontal and Vector3.new(d, 0, off + side * 1.5) or Vector3.new(off + side * 1.5, 0, d))
+			part({ Size = Vector3.new(0.6, 12, 0.6), Position = lp + Vector3.new(0, 6, 0), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
+			local lamp = part({ Size = Vector3.new(1.8, 0.9, 1.8), Position = lp + Vector3.new(0, 12.3, 0), Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Neon })
+			local l = Instance.new("PointLight") l.Range = 22 l.Brightness = 1.2 l.Color = lamp.Color l.Parent = lamp
+		end
+	end
 end
+street(290, 153, 290, 355)
+street(955, 153, 955, 355)
+for _, z in ipairs({ 175, 235, 295, 355 }) do street(290, z, 955, z) end
 
 -- Пешеходы гуляют по тротуарам и в киберквартал
 local ANIM_WALK = "rbxassetid://507777826"
@@ -531,13 +598,14 @@ local function pedestrian(points, speed)
 	end)
 end
 local walkY = RY + 0.9
-for n = 1, 10 do
+for n = 1, 10 do   -- 7 вдоль трассы, 3 по улицам квартала
 	local side = n % 2 == 0 and ROAD_Z + ROAD_W / 2 + 3 or ROAD_Z - ROAD_W / 2 - 3
 	local x1 = rng:NextInteger(-120, 1100)
 	if n <= 7 then
 		pedestrian({ Vector3.new(x1, walkY, side), Vector3.new(x1 + rng:NextInteger(150, 300), walkY, side) }, rng:NextInteger(5, 8))
 	else
-		pedestrian({ Vector3.new(300, walkY, 160), Vector3.new(300, walkY, 235), Vector3.new(940, walkY, 235), Vector3.new(940, walkY, 160) }, 7)
+		local sz = ({ 175, 235, 295 })[n - 7] + STREET_W / 2 + 2.5
+		pedestrian({ Vector3.new(282, walkY, sz), Vector3.new(963, walkY, sz) }, rng:NextInteger(5, 8))
 	end
 end
 

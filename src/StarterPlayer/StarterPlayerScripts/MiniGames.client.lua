@@ -12,7 +12,7 @@ local player = Players.LocalPlayer
 local remote = ReplicatedStorage:WaitForChild("MiniGame")
 local isRu = player.LocaleId:sub(1, 2) == "ru"
 local function L(ru, en) return isRu and ru or en end
-local GAME_TIME = 60
+local GAME_TIME = 60   -- меняется под каждую игру
 
 local function short(n)
 	n = math.floor(n)
@@ -77,7 +77,11 @@ corner(area, 14)
 
 local running = false
 local closeB = button(win, { Size = UDim2.new(0.07, 0, 0.1, 0), Position = UDim2.new(0.94, 0, -0.04, 0), BackgroundColor3 = Color3.fromRGB(230, 50, 50), Text = "X" },
-	function() if not running then win.Visible = false end end)
+	function()
+		-- закрыть можно в любой момент; незаконченная игра не засчитывается
+		running = false
+		win.Visible = false
+	end)
 local _ = closeB
 
 local function clearArea() for _, c in ipairs(area:GetChildren()) do if not c:IsA("UICorner") then c:Destroy() end end end
@@ -107,21 +111,29 @@ end
 
 local function playClick()
 	local score = 0
-	scoreL.Text = L("Поймано: 0", "Caught: 0")
+	scoreL.Text = L("Поймано: 0   💣 = −5", "Caught: 0   💣 = −5")
 	clearArea()
 	local colors = { Color3.fromRGB(255, 80, 120), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 220, 255), Color3.fromRGB(120, 255, 120), Color3.fromRGB(200, 120, 255) }
 	local function spawnCircle()
 		local size = math.random(55, 85)
+		local isBomb = math.random() < 0.25
 		local c = button(area, {
 			Size = UDim2.new(0, size, 0, size),
 			Position = UDim2.new(math.random() * 0.85, 0, math.random() * 0.8, 0),
-			BackgroundColor3 = colors[math.random(#colors)], Text = "💰", AutoButtonColor = false,
+			BackgroundColor3 = isBomb and Color3.fromRGB(35, 35, 40) or colors[math.random(#colors)],
+			Text = isBomb and "💣" or "💰", AutoButtonColor = false,
 		})
 		corner(c, size)
 		stroke(c, Color3.new(1, 1, 1), 3)
 		c.MouseButton1Down:Connect(function()
 			if not running then return end
-			score += 1
+			if isBomb then
+				score = math.max(0, score - 5)
+				area.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+				task.delay(0.15, function() area.BackgroundColor3 = Color3.fromRGB(34, 32, 46) end)
+			else
+				score += 1
+			end
 			scoreL.Text = L("Поймано: ", "Caught: ") .. score
 			c:Destroy()
 			spawnCircle()
@@ -170,7 +182,12 @@ local function playMath()
 					scoreL.Text = L("Решено: ", "Solved: ") .. score
 					nextQuestion()
 				else
-					b2.BackgroundColor3 = Color3.fromRGB(200, 50, 50)   -- ошибка: просто красная, можно пробовать дальше
+					-- ошибка: сразу новый пример, угадывать бесполезно
+					b2.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+					area.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+					task.wait(0.25)
+					area.BackgroundColor3 = Color3.fromRGB(34, 32, 46)
+					if running then nextQuestion() end
 				end
 			end)
 		end
@@ -185,8 +202,8 @@ end
 --=========================================================================
 
 local GAMES = {
-	{ key = "click", icon = "🎯", ru = "Лови кружки", en = "Catch Coins", play = playClick, color = Color3.fromRGB(230, 90, 50) },
-	{ key = "math",  icon = "🧮", ru = "Быстрый счёт", en = "Quick Math", play = playMath, color = Color3.fromRGB(70, 110, 230) },
+	{ key = "click", icon = "🎯", ru = "Лови кружки", en = "Catch Coins", play = playClick, color = Color3.fromRGB(230, 90, 50), time = 30 },
+	{ key = "math",  icon = "🧮", ru = "Быстрый счёт", en = "Quick Math", play = playMath, color = Color3.fromRGB(70, 110, 230), time = 60 },
 }
 
 local side = Instance.new("Frame")
@@ -220,12 +237,16 @@ for _, g in ipairs(GAMES) do
 	b.MouseButton1Click:Connect(function()
 		if running or not ready() then return end
 		if remote:InvokeServer("start", g.key) ~= true then return end
+		GAME_TIME = g.time
 		title.Text = g.icon .. " " .. (isRu and g.ru or g.en)
 		win.Visible = true
 		running = true
 		local score = g.play()
+		local finished = running
 		running = false
 		timerL.Text = ""
-		showResult(remote:InvokeServer("finish", g.key, score))
+		if finished then
+			showResult(remote:InvokeServer("finish", g.key, score))
+		end
 	end)
 end

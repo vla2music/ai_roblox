@@ -1333,12 +1333,12 @@ local function createPlot(index)
 	-- площадки «доход за N часов» за Robux (наступил — открылась покупка)
 	local padLabels = {}
 	for k, pack in ipairs(Shared.COIN_PACKS) do
-		local pad = box(model, origin, Vector3.new(7, 0.8, 7), -48 + (k - 1) * 7, 0.4, 41, Color3.fromRGB(255, 205, 40), Enum.Material.SmoothPlastic)
+		local pad = box(model, origin, Vector3.new(7, 0.8, 7), -48 + (k - 1) * 7, 0.9, 41, Color3.fromRGB(255, 205, 40), Enum.Material.SmoothPlastic)
 		box(model, origin, Vector3.new(0.5, 9.2, 9.2), -48 + (k - 1) * 7, 0.25, 41, Color3.fromRGB(60, 60, 70), Enum.Material.Metal,
-			{ Shape = Enum.PartType.Cylinder, CanCollide = false }).CFrame = at(origin, -48 + (k - 1) * 7, 0.25, 41) * CFrame.Angles(0, 0, math.rad(90))
+			{ Shape = Enum.PartType.Cylinder, CanCollide = false }).CFrame = at(origin, -48 + (k - 1) * 7, 0.3, 41) * CFrame.Angles(0, 0, math.rad(90))
 		pad.Shape = Enum.PartType.Cylinder
-		pad.Size = Vector3.new(0.8, 8, 8)
-		pad.CFrame = at(origin, -48 + (k - 1) * 7, 0.4, 41) * CFrame.Angles(0, 0, math.rad(90))
+		pad.Size = Vector3.new(1, 8, 8)
+		pad.CFrame = at(origin, -48 + (k - 1) * 7, 0.95, 41) * CFrame.Angles(0, 0, math.rad(90))
 		local lbl = addLabel(pad, "", Color3.fromRGB(120, 255, 140), 0)
 		lbl.Parent.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
 		lbl.Parent.Size = UDim2.new(0, 160, 0, 60)
@@ -1349,8 +1349,12 @@ local function createPlot(index)
 			if not player or pack.id == 0 then return end
 			if cooldown[player] and os.clock() - cooldown[player] < 5 then return end
 			cooldown[player] = os.clock()
-			local base = pad.CFrame
-			TweenService:Create(pad, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, true), { CFrame = base * CFrame.new(-0.35, 0, 0) }):Play()
+			local base = pad:GetAttribute("BaseCF") or pad.CFrame
+			pad:SetAttribute("BaseCF", base)
+			TweenService:Create(pad, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { CFrame = base * CFrame.new(-0.45, 0, 0), Color = Color3.fromRGB(255, 255, 140) }):Play()
+			task.delay(0.25, function()
+				TweenService:Create(pad, TweenInfo.new(0.35, Enum.EasingStyle.Back), { CFrame = base, Color = Color3.fromRGB(255, 205, 40) }):Play()
+			end)
 			playSound(CONFIG.SOUND_COLLECT, pad, 0.5)
 			MarketplaceService:PromptProductPurchase(player, pack.id)
 		end)
@@ -1649,9 +1653,12 @@ local function tryBuy(player, plot, item)
 	burst:Emit(40)
 	playSound(CONFIG.SOUND_COLLECT, fx, 0.6)
 	task.delay(2, function() fx:Destroy() end)
-	TweenService:Create(button, TweenInfo.new(0.12), { CFrame = base * CFrame.new(-0.5, 0, 0), Color = Color3.fromRGB(80, 220, 100) }):Play()
-	task.delay(0.3, function()
-		button.CFrame = base
+	-- вдавливается на полкнопки, зеленеет, потом плавно пружинит обратно
+	TweenService:Create(button, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { CFrame = base * CFrame.new(-0.35, 0, 0), Color = Color3.fromRGB(80, 220, 100) }):Play()
+	task.delay(0.25, function()
+		TweenService:Create(button, TweenInfo.new(0.3, Enum.EasingStyle.Back), { CFrame = base }):Play()
+	end)
+	task.delay(0.6, function()
 		button.Color = Color3.fromRGB(215, 45, 55)
 		refreshButtons(plot)
 	end)
@@ -2077,8 +2084,8 @@ end
 -- МИНИ-ИГРЫ: «Лови кружки» и «Быстрый счёт». Раз в 5 минут каждая.
 -- Сервер сам проверяет время и потолок очков, чтобы нельзя было накрутить.
 local MINIGAMES = {
-	click = { maxScore = 150, perPoint = 2 },   -- награда за очко = доход за 2 сек
-	math  = { maxScore = 45,  perPoint = 6 },   -- за пример = доход за 6 сек
+	click = { maxScore = 90, perPoint = 3, time = 30 },   -- 30 сек, очко = доход за 3 сек
+	math  = { maxScore = 45, perPoint = 6, time = 60 },   -- 60 сек, пример = доход за 6 сек
 }
 local MINIGAME_COOLDOWN = 300
 local MINIGAME_TIME = 60
@@ -2101,7 +2108,7 @@ miniGame.OnServerInvoke = function(player, action, name, score)
 		local started = miniStart[player] and miniStart[player][name]
 		if not started then return nil end
 		miniStart[player][name] = nil
-		if os.clock() - started < MINIGAME_TIME - 5 then return nil end   -- слишком рано — не засчитываем
+		if os.clock() - started < cfg.time - 3 then return nil end   -- слишком рано — не засчитываем
 		score = math.clamp(math.floor(tonumber(score) or 0), 0, cfg.maxScore)
 		local reward = math.floor(score * math.max(5, plot.income * cfg.perPoint))
 		player.leaderstats[CONFIG.CURRENCY_NAME].Value += reward

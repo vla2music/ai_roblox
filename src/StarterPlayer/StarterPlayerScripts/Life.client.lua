@@ -52,12 +52,15 @@ local function makeCar(color)
 end
 
 -- маршрут: прямоугольник по улицам между рядами домов
+local Y = 2.2   -- уровень дороги (loopPos добавит GROUND + 0.8)
 local LOOPS = {
-	-- по трассе вдоль всех клубов (две полосы)
-	{ Vector3.new(-150, 2.2, 134), Vector3.new(1410, 2.2, 134), Vector3.new(1410, 2.2, 146), Vector3.new(-150, 2.2, 146) },
-	-- с трассы в киберквартал и обратно
-	{ Vector3.new(300, 2.2, 146), Vector3.new(300, 2.2, 235), Vector3.new(940, 2.2, 235), Vector3.new(940, 2.2, 146) },
-	{ Vector3.new(300, 0, 235), Vector3.new(940, 0, 235), Vector3.new(940, 0, 355), Vector3.new(300, 0, 355) },
+	-- трасса вдоль всех клубов
+	{ Vector3.new(-150, Y, 140), Vector3.new(1410, Y, 140) },
+	-- кольцо: трасса -> улица x=290 -> улица z=355 -> улица x=955 -> трасса
+	{ Vector3.new(290, Y, 140), Vector3.new(290, Y, 355), Vector3.new(955, Y, 355), Vector3.new(955, Y, 140) },
+	-- кварталы
+	{ Vector3.new(290, Y, 175), Vector3.new(955, Y, 175), Vector3.new(955, Y, 295), Vector3.new(290, Y, 295) },
+	{ Vector3.new(290, Y, 235), Vector3.new(955, Y, 235), Vector3.new(955, Y, 355), Vector3.new(290, Y, 355) },
 }
 local function loopPos(loop, d)
 	local total = 0
@@ -78,8 +81,8 @@ local function loopPos(loop, d)
 end
 
 local cars = {}
-for i = 1, 12 do
-	table.insert(cars, { pieces = makeCar(CAR_COLORS[(i - 1) % #CAR_COLORS + 1]), loop = LOOPS[i <= 6 and 1 or (i <= 9 and 2 or 3)], offset = i * 170, speed = 35 + (i % 3) * 8, dir = i % 2 == 0 and 1 or -1 })
+for i = 1, 14 do
+	table.insert(cars, { pieces = makeCar(CAR_COLORS[(i - 1) % #CAR_COLORS + 1]), loop = LOOPS[i <= 6 and 1 or (i <= 9 and 2 or (i <= 11 and 3 or 4))], offset = i * 170, speed = 35 + (i % 3) * 8, dir = i % 2 == 0 and 1 or -1 })
 end
 
 -- Дроны
@@ -114,6 +117,7 @@ RunService.RenderStepped:Connect(function(dt)
 	for _, c in ipairs(cars) do
 		local pos, dir = loopPos(c.loop, c.offset + t * c.speed * c.dir)
 		if c.dir < 0 then dir = -dir end
+		pos += dir:Cross(Vector3.yAxis) * (c.loop[3] and 3.2 or 6)   -- правая полоса
 		local cf = CFrame.lookAt(pos, pos + dir)
 		for _, p in ipairs(c.pieces) do p[1].CFrame = cf * p[2] end
 	end
