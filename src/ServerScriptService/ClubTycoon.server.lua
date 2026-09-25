@@ -47,7 +47,7 @@ local CONFIG = {
 	},
 	MUSIC_VOLUME   = 0.3,
 	SOUND_BUY      = "rbxassetid://131737037329240",  -- звук покупки
-	SOUND_COLLECT  = "rbxassetid://113730061669739",  -- звук сбора монетки
+	SOUND_COLLECT  = "rbxassetid://7147797532",  -- звук сбора монетки (удар snare)
 
 	-- Ковролин для пола (создан в Studio, лежит в MaterialService)
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
@@ -812,7 +812,7 @@ local function pickUpCoin(plot, coin, player)
 
 	local value = coin:GetAttribute("Value") or 0
 	player.leaderstats[CONFIG.CURRENCY_NAME].Value += value
-	playSound(CONFIG.SOUND_COLLECT, plot.coinPad, 0.4)
+	playSound(CONFIG.SOUND_COLLECT, plot.coinPad, 0.28)
 
 	-- монетка подпрыгивает и исчезает
 	local tween = TweenService:Create(coin, TweenInfo.new(0.25), {
