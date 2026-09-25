@@ -147,6 +147,7 @@ while placed < 140 do
 	local z = rng:NextNumber(-MOUNTAIN_RZ * 0.8, MOUNTAIN_RZ * 0.8)
 	local insideEllipse = ((x - CENTER.X) / (MOUNTAIN_RX * 0.85)) ^ 2 + (z / (MOUNTAIN_RZ * 0.8)) ^ 2 < 1
 	local nearPlots = x > PLOTS_FROM_X - 30 and x < PLOTS_TO_X + 30 and math.abs(z) < 110
+		or z > 90   -- спереди от клубов — город, аттракционы и дорожка
 	if insideEllipse and not nearPlots then
 		makeTree(Vector3.new(x, GROUND, z))
 		placed += 1
