@@ -11,6 +11,7 @@ local Players            = game:GetService("Players")
 local DataStoreService   = game:GetService("DataStoreService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService       = game:GetService("TweenService")
+local SoundService       = game:GetService("SoundService")
 
 --=========================================================================
 -- 1. НАСТРОЙКИ
@@ -24,6 +25,18 @@ local CONFIG = {
 	START_MONEY    = 0,
 	AUTOSAVE_SEC   = 60,
 	DATASTORE_NAME = "ClubTycoon_v1",
+
+	-- Участок приподнят над базовой площадкой Roblox. Без этого два пола
+	-- оказываются на одной высоте и картинка рябит.
+	PLOT_HEIGHT    = 1,
+
+	-- Музыка и звуки.
+	-- ID берутся в Studio: Toolbox -> Audio -> правой кнопкой по треку
+	-- -> Copy Asset ID. Пусто = звука нет, игра работает как обычно.
+	MUSIC_IDS      = {},   -- например: {"rbxassetid://1234567890"}
+	MUSIC_VOLUME   = 0.3,
+	SOUND_BUY      = "",   -- звук покупки
+	SOUND_COLLECT  = "",   -- звук, когда забираешь деньги из сейфа
 
 	-- ID геймпасса «x2 монеты». Пока 0 — геймпасс просто выключен.
 	-- Когда создашь геймпасс на сайте Roblox, впиши сюда его номер.
@@ -118,6 +131,35 @@ local function short(n)
 	if n >= 1e6 then return string.format("%.1fМлн", n / 1e6) end
 	if n >= 1e3 then return string.format("%.1fК",   n / 1e3) end
 	return tostring(n)
+end
+
+-- «1 монета», «2 монеты», «5 монет»
+local function coins(n)
+	n = math.floor(math.abs(n))
+	local lastTwo = n % 100
+	local lastOne = n % 10
+	if lastTwo >= 11 and lastTwo <= 14 then return "монет" end
+	if lastOne == 1 then return "монета" end
+	if lastOne >= 2 and lastOne <= 4 then return "монеты" end
+	return "монет"
+end
+
+-- Проигрывает звук один раз и убирает его за собой
+local function playSound(soundId, parent, volume)
+	if not soundId or soundId == "" or not parent then return end
+
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = volume or 0.5
+	sound.Parent = parent
+	sound:Play()
+
+	sound.Ended:Connect(function()
+		sound:Destroy()
+	end)
+	task.delay(10, function()
+		if sound.Parent then sound:Destroy() end
+	end)
 end
 
 local function addLabel(part, text, color, size)
@@ -340,7 +382,11 @@ local function buttonPosition(item)
 end
 
 local function createPlot(index)
-	local origin = CFrame.new((index - 1) * (CONFIG.PLOT_SIZE + CONFIG.PLOT_GAP), 0, 0)
+	local origin = CFrame.new(
+		(index - 1) * (CONFIG.PLOT_SIZE + CONFIG.PLOT_GAP),
+		CONFIG.PLOT_HEIGHT,
+		0
+	)
 
 	local model = Instance.new("Model")
 	model.Name = "Участок" .. index
@@ -370,8 +416,8 @@ local function createPlot(index)
 	-- табличка «свободно / клуб такого-то»
 	local pole = makePart({
 		Name = "Табличка",
-		Size = Vector3.new(1, 14, 1),
-		CFrame = origin * CFrame.new(0, 7, 44),
+		Size = Vector3.new(1, 18, 1),
+		CFrame = origin * CFrame.new(-26, 9, 44),
 		Color = Color3.fromRGB(30, 30, 40),
 		Parent = model,
 	})
@@ -417,7 +463,10 @@ local function createPlot(index)
 			Parent = model,
 		})
 		button:SetAttribute("ItemId", item.id)
-		addLabel(button, item.name .. "\n" .. short(item.cost) .. " " .. CONFIG.CURRENCY_NAME)
+		local priceText = item.cost == 0
+			and "БЕСПЛАТНО"
+			or (short(item.cost) .. " " .. coins(item.cost))
+		addLabel(button, item.name .. "\n" .. priceText)
 		button.Transparency = 1
 		button.CanCollide = false
 		for _, child in ipairs(button:GetChildren()) do
@@ -519,6 +568,7 @@ local function tryBuy(player, plot, item)
 	buildItem(plot, item, true)
 	recalcIncome(plot)
 	refreshButtons(plot)
+	playSound(CONFIG.SOUND_BUY, plot.buttons[item.id], 0.6)
 end
 
 local function connectPlotTouches(plot)
@@ -546,6 +596,7 @@ local function connectPlotTouches(plot)
 		local stats = player:FindFirstChild("Stats")
 		if stats then stats.Storage.Value = plot.storage end
 		plot.safeLabel.Text = "СЕЙФ\n0"
+		playSound(CONFIG.SOUND_COLLECT, plot.safe, 0.5)
 	end)
 end
 
@@ -703,5 +754,24 @@ game:BindToClose(function()
 	end
 	task.wait(2)
 end)
+
+-- фоновая музыка: треки играют по кругу
+if #CONFIG.MUSIC_IDS > 0 then
+	task.spawn(function()
+		local music = Instance.new("Sound")
+		music.Name = "Музыка"
+		music.Volume = CONFIG.MUSIC_VOLUME
+		music.Looped = false
+		music.Parent = SoundService
+
+		local index = 0
+		while true do
+			index = index % #CONFIG.MUSIC_IDS + 1
+			music.SoundId = CONFIG.MUSIC_IDS[index]
+			music:Play()
+			music.Ended:Wait()
+		end
+	end)
+end
 
 print("[КлубТайкун] Сервер запущен. Участков:", CONFIG.MAX_PLOTS)

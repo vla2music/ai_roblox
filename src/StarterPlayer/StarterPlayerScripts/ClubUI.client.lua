@@ -17,6 +17,17 @@ local stats       = player:WaitForChild("Stats")
 local income      = stats:WaitForChild("Income")
 local storage     = stats:WaitForChild("Storage")
 
+-- «1 монета», «2 монеты», «5 монет»
+local function coins(n)
+	n = math.floor(math.abs(n))
+	local lastTwo = n % 100
+	local lastOne = n % 10
+	if lastTwo >= 11 and lastTwo <= 14 then return "монет" end
+	if lastOne == 1 then return "монета" end
+	if lastOne >= 2 and lastOne <= 4 then return "монеты" end
+	return "монет"
+end
+
 local function short(n)
 	n = math.floor(n)
 	if n >= 1e9 then return string.format("%.1fМрд", n / 1e9) end
@@ -85,7 +96,7 @@ local storageLabel = makeRow(3, 15, Color3.fromRGB(200, 200, 215))
 --=========================================================================
 
 local function refresh()
-	moneyLabel.Text   = short(money.Value) .. " " .. CURRENCY
+	moneyLabel.Text   = short(money.Value) .. " " .. coins(money.Value)
 	incomeLabel.Text  = "+" .. short(income.Value) .. " в секунду"
 	storageLabel.Text = "В сейфе: " .. short(storage.Value) .. "  (подойди и забери)"
 end
