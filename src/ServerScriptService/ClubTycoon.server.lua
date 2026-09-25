@@ -66,6 +66,10 @@ local CONFIG = {
 
 	-- Фото владельца на сцене. Когда загрузим картинку — впиши её ID сюда.
 	POSTER_IMAGE   = "",
+	-- Видео владельца на сцене (важнее фото). Впиши ID после загрузки
+	-- на create.roblox.com, например "rbxassetid://1234567890".
+	POSTER_VIDEO   = "",
+	POSTER_VIDEO_VOLUME = 0.5,
 
 	-- Банкомат: сам выбрасывает монетки на площадку,
 	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
@@ -629,8 +633,21 @@ end
 function builders.stage(item, origin, model, lang)
 	box(model, origin, Vector3.new(16 * S, 1.5, 10 * S), -5, 0.75, -30, Color3.fromRGB(40, 35, 60), Enum.Material.Wood)
 	box(model, origin, Vector3.new(16 * S, 0.3, 0.4), -5, 1.6, -25, Color3.fromRGB(255, 200, 80), Enum.Material.Neon)
-	local frame = box(model, origin, Vector3.new(12, 9, 0.5), -5, 7.5, -34.3, Color3.fromRGB(20, 20, 25))
-	if CONFIG.POSTER_IMAGE ~= "" then
+	-- экран вертикальный, как видео (768x1120)
+	local frame = box(model, origin, Vector3.new(7, 10.2, 0.5), -5, 7.5, -34.3, Color3.fromRGB(20, 20, 25))
+	if CONFIG.POSTER_VIDEO ~= "" then
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Back
+		gui.Parent = frame
+		local video = Instance.new("VideoFrame")
+		video.Size = UDim2.fromScale(1, 1)
+		video.BackgroundTransparency = 1
+		video.Video = CONFIG.POSTER_VIDEO
+		video.Looped = true
+		video.Volume = CONFIG.POSTER_VIDEO_VOLUME
+		video.Parent = gui
+		video:Play()
+	elseif CONFIG.POSTER_IMAGE ~= "" then
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = Enum.NormalId.Back
 		gui.Parent = frame
