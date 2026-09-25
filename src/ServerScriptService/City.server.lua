@@ -287,8 +287,9 @@ end
 --=========================================================================
 
 local boards = {
-	{ store = "TopCoins_v1",    title = "🏆 TOP COINS",    stat = "Coins",    pos = Vector3.new(120, GROUND, 118) },
-	{ store = "TopRebirths_v1", title = "🔄 TOP REBIRTHS", stat = "Rebirths", pos = Vector3.new(360, GROUND, 118) },
+	{ store = "TopEarned_v1",   title = "💰 TOP MONEY EARNED", attr = "TotalEarned", pos = Vector3.new(90, GROUND, 176) },
+	{ store = "TopTime_v1",     title = "⏱ TOP TIME PLAYED",  attr = "PlayTime", time = true, pos = Vector3.new(150, GROUND, 176) },
+	{ store = "TopRebirths_v1", title = "🔄 TOP REBIRTHS",     stat = "Rebirths", pos = Vector3.new(210, GROUND, 176) },
 }
 
 local function short(n)
@@ -347,16 +348,23 @@ task.spawn(function()
 	while true do
 		for _, b in ipairs(boards) do
 			for _, player in ipairs(Players:GetPlayers()) do
-				local ls = player:FindFirstChild("leaderstats")
-				local v = ls and ls:FindFirstChild(b.stat)
-				if v and v.Value > 0 then
-					pcall(function() b.ods:SetAsync(tostring(player.UserId), math.floor(v.Value)) end)
+				local value
+				if b.attr then
+					value = player:GetAttribute(b.attr)
+				else
+					local ls = player:FindFirstChild("leaderstats")
+					local v = ls and ls:FindFirstChild(b.stat)
+					value = v and v.Value
+				end
+				if value and value > 0 then
+					pcall(function() b.ods:SetAsync(tostring(player.UserId), math.floor(value)) end)
 				end
 			end
 			local ok, pages = pcall(function() return b.ods:GetSortedAsync(false, 10) end)
 			if ok then
 				for i, entry in ipairs(pages:GetCurrentPage()) do
-					b.rows[i].Text = string.format("%d.  %s   %s", i, nameOf(tonumber(entry.key)), short(entry.value))
+					local v = b.time and string.format("%dh %02dm", entry.value // 3600, entry.value % 3600 // 60) or short(entry.value)
+					b.rows[i].Text = string.format("%d.  %s   %s", i, nameOf(tonumber(entry.key)), v)
 				end
 			end
 		end
@@ -411,5 +419,126 @@ chest.Touched:Connect(function(hit)
 	busy = false
 end)
 Players.PlayerRemoving:Connect(function(p) lastFound[p] = nil end)
+
+--=========================================================================
+-- ТРАССА вдоль всех клубов, парковки со знаком P, переходы-зебры,
+-- тротуар с фонарями, киоски с дешёвыми лимонадами «через дорогу»,
+-- пешеходы
+--=========================================================================
+
+local ROAD_Z, ROAD_W = 140, 26
+local RY = GROUND + 2          -- дорога выше «вспухшего» газона
+part({ Name = "Трасса", Size = Vector3.new(1600, 1, ROAD_W), Position = Vector3.new(630, RY, ROAD_Z), Color = Color3.fromRGB(38, 38, 44), Material = Enum.Material.Asphalt })
+for x = -160, 1420, 18 do   -- прерывистая разметка
+	part({ Size = Vector3.new(9, 0.1, 0.6), Position = Vector3.new(x, RY + 0.55, ROAD_Z), Color = Color3.fromRGB(240, 240, 240), Material = Enum.Material.Neon, CanCollide = false })
+end
+for _, dz in ipairs({ -ROAD_W / 2 + 0.8, ROAD_W / 2 - 0.8 }) do
+	part({ Size = Vector3.new(1600, 0.1, 0.4), Position = Vector3.new(630, RY + 0.55, ROAD_Z + dz), Color = Color3.fromRGB(255, 210, 60), CanCollide = false })
+end
+-- тротуар и фонари с обеих сторон
+for _, sz in ipairs({ ROAD_Z - ROAD_W / 2 - 3, ROAD_Z + ROAD_W / 2 + 3 }) do
+	part({ Size = Vector3.new(1600, 1.4, 6), Position = Vector3.new(630, RY + 0.2, sz), Color = Color3.fromRGB(150, 150, 160), Material = Enum.Material.Concrete })
+end
+for x = -140, 1400, 45 do
+	for _, sz in ipairs({ ROAD_Z - ROAD_W / 2 - 4.5, ROAD_Z + ROAD_W / 2 + 4.5 }) do
+		part({ Size = Vector3.new(0.7, 14, 0.7), Position = Vector3.new(x, RY + 7, sz), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
+		local lamp = part({ Size = Vector3.new(2, 1, 2), Position = Vector3.new(x, RY + 14.3, sz), Color = Color3.fromRGB(255, 225, 160), Material = Enum.Material.Neon })
+		local l = Instance.new("PointLight") l.Range = 26 l.Brightness = 1.3 l.Color = lamp.Color l.Parent = lamp
+	end
+end
+-- у каждого клуба: парковка с P, зебра и киоск через дорогу
+local lemonadePrompt
+for _ = 1, 100 do
+	lemonadePrompt = _G.ClubLemonadePrompt
+	if lemonadePrompt then break end
+	task.wait(0.2)
+end
+for i = 0, 5 do
+	local cx = i * 240
+	-- парковка между лентой и трассой
+	part({ Size = Vector3.new(36, 1, 12), Position = Vector3.new(cx + 40, RY - 0.05, ROAD_Z + ROAD_W / 2 + 13), Color = Color3.fromRGB(45, 45, 52), Material = Enum.Material.Asphalt })
+	for k = 0, 5 do
+		part({ Size = Vector3.new(0.4, 0.1, 9), Position = Vector3.new(cx + 23 + k * 6.5, RY + 0.5, ROAD_Z + ROAD_W / 2 + 13), Color = Color3.new(1, 1, 1), CanCollide = false })
+	end
+	part({ Size = Vector3.new(0.5, 9, 0.5), Position = Vector3.new(cx + 20, RY + 4.5, ROAD_Z + ROAD_W / 2 + 7), Color = Color3.fromRGB(150, 150, 160), Material = Enum.Material.Metal })
+	local sign = part({ Size = Vector3.new(4, 4, 0.3), Position = Vector3.new(cx + 20, RY + 10, ROAD_Z + ROAD_W / 2 + 7), Color = Color3.fromRGB(30, 90, 220) })
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local g = Instance.new("SurfaceGui") g.Face = face g.LightInfluence = 0 g.Parent = sign
+		local t = Instance.new("TextLabel") t.Size = UDim2.fromScale(1, 1) t.BackgroundTransparency = 1 t.Font = Enum.Font.GothamBlack
+		t.TextScaled = true t.Text = "P" t.TextColor3 = Color3.new(1, 1, 1) t.Parent = g
+	end
+	-- зебра
+	for k = 0, 6 do
+		part({ Size = Vector3.new(1.6, 0.1, ROAD_W - 2), Position = Vector3.new(cx - 6 + k * 2, RY + 0.52, ROAD_Z), Color = Color3.new(1, 1, 1), CanCollide = false })
+	end
+	-- киоск с лимонадами через дорогу (в 3 раза дешевле, чем в клубе)
+	local kz = ROAD_Z + ROAD_W / 2 + 12
+	part({ Size = Vector3.new(16, 1, 10), Position = Vector3.new(cx, RY, kz), Color = Color3.fromRGB(90, 60, 40), Material = Enum.Material.WoodPlanks })
+	part({ Size = Vector3.new(16, 0.6, 10), Position = Vector3.new(cx, RY + 10, kz), Color = Color3.fromRGB(255, 200, 40) })
+	for _, dx in ipairs({ -7.5, 7.5 }) do
+		part({ Size = Vector3.new(0.6, 9.5, 0.6), Position = Vector3.new(cx + dx, RY + 5, kz - 4.5), Color = Color3.fromRGB(240, 240, 240) })
+	end
+	local board = part({ Size = Vector3.new(16, 3, 0.4), Position = Vector3.new(cx, RY + 11.8, kz - 5), Color = Color3.fromRGB(20, 20, 30) })
+	local g = Instance.new("SurfaceGui") g.Face = Enum.NormalId.Front g.LightInfluence = 0 g.Parent = board
+	local t = Instance.new("TextLabel") t.Size = UDim2.fromScale(1, 1) t.BackgroundTransparency = 1 t.Font = Enum.Font.GothamBlack
+	t.TextScaled = true t.Text = "🍋 LEMONADE -66%" t.TextColor3 = Color3.fromRGB(255, 230, 80) t.Parent = g
+	for k, kind in ipairs(require(game:GetService("ReplicatedStorage"):WaitForChild("ClubShared")).LEMONADES) do
+		local fridge = part({ Size = Vector3.new(3.5, 6, 3), Position = Vector3.new(cx - 5 + (k - 1) * 5, RY + 3.5, kz + 2), Color = kind.color, Material = Enum.Material.Neon, Transparency = 0.2 })
+		if lemonadePrompt then lemonadePrompt(fridge, kind, 1, nil) end
+	end
+end
+-- дороги от трассы в киберквартал
+for _, x in ipairs({ 300, 940 }) do
+	part({ Size = Vector3.new(14, 1, 50), Position = Vector3.new(x, RY, 175), Color = Color3.fromRGB(38, 38, 44), Material = Enum.Material.Asphalt })
+end
+
+-- Пешеходы гуляют по тротуарам и в киберквартал
+local ANIM_WALK = "rbxassetid://507777826"
+local TweenService = game:GetService("TweenService")
+local function pedestrian(points, speed)
+	local ok, npc = pcall(function()
+		local d = Instance.new("HumanoidDescription")
+		local skins = { Color3.fromRGB(234, 184, 146), Color3.fromRGB(198, 140, 100), Color3.fromRGB(141, 85, 56) }
+		local s0 = skins[rng:NextInteger(1, 3)]
+		d.HeadColor, d.LeftArmColor, d.RightArmColor = s0, s0, s0
+		d.TorsoColor = Color3.fromHSV(rng:NextNumber(), 0.7, 0.9)
+		local legs = Color3.fromHSV(rng:NextNumber(), 0.4, 0.4)
+		d.LeftLegColor, d.RightLegColor = legs, legs
+		return Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	end)
+	if not ok then return end
+	npc.Name = "Пешеход"
+	npc.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	for _, d in ipairs(npc:GetDescendants()) do if d:IsA("BasePart") then d.CanCollide = false end end
+	local root = npc.HumanoidRootPart
+	root.Anchored = true
+	local h = npc.Humanoid.HipHeight + root.Size.Y / 2
+	for k, p in ipairs(points) do points[k] = p + Vector3.new(0, h, 0) end
+	npc:PivotTo(CFrame.new(points[1]))
+	npc.Parent = city
+	local anim = Instance.new("Animation") anim.AnimationId = ANIM_WALK
+	local track = npc.Humanoid:WaitForChild("Animator"):LoadAnimation(anim)
+	track.Looped = true track:Play()
+	task.spawn(function()
+		local i = 2
+		while npc.Parent do
+			local from, to = root.Position, points[i]
+			root.CFrame = CFrame.lookAt(from, to)
+			local tw = TweenService:Create(root, TweenInfo.new((to - from).Magnitude / speed, Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(to, to + (to - from).Unit) })
+			tw:Play() tw.Completed:Wait()
+			i = i % #points + 1
+		end
+	end)
+end
+local walkY = RY + 0.9
+for n = 1, 10 do
+	local side = n % 2 == 0 and ROAD_Z + ROAD_W / 2 + 3 or ROAD_Z - ROAD_W / 2 - 3
+	local x1 = rng:NextInteger(-120, 1100)
+	if n <= 7 then
+		pedestrian({ Vector3.new(x1, walkY, side), Vector3.new(x1 + rng:NextInteger(150, 300), walkY, side) }, rng:NextInteger(5, 8))
+	else
+		pedestrian({ Vector3.new(300, walkY, 160), Vector3.new(300, walkY, 235), Vector3.new(940, walkY, 235), Vector3.new(940, walkY, 160) }, 7)
+	end
+end
 
 print("[Город] Дорожка, город, колесо, горки и рекорды готовы")

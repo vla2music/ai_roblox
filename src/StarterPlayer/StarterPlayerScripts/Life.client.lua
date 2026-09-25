@@ -53,8 +53,11 @@ end
 
 -- маршрут: прямоугольник по улицам между рядами домов
 local LOOPS = {
+	-- по трассе вдоль всех клубов (две полосы)
+	{ Vector3.new(-150, 2.2, 134), Vector3.new(1410, 2.2, 134), Vector3.new(1410, 2.2, 146), Vector3.new(-150, 2.2, 146) },
+	-- с трассы в киберквартал и обратно
+	{ Vector3.new(300, 2.2, 146), Vector3.new(300, 2.2, 235), Vector3.new(940, 2.2, 235), Vector3.new(940, 2.2, 146) },
 	{ Vector3.new(300, 0, 235), Vector3.new(940, 0, 235), Vector3.new(940, 0, 355), Vector3.new(300, 0, 355) },
-	{ Vector3.new(300, 0, 175), Vector3.new(940, 0, 175), Vector3.new(940, 0, 295), Vector3.new(300, 0, 295) },
 }
 local function loopPos(loop, d)
 	local total = 0
@@ -75,8 +78,8 @@ local function loopPos(loop, d)
 end
 
 local cars = {}
-for i = 1, 8 do
-	table.insert(cars, { pieces = makeCar(CAR_COLORS[(i - 1) % #CAR_COLORS + 1]), loop = LOOPS[(i - 1) % 2 + 1], offset = i * 170, speed = 35 + (i % 3) * 8, dir = i % 2 == 0 and 1 or -1 })
+for i = 1, 12 do
+	table.insert(cars, { pieces = makeCar(CAR_COLORS[(i - 1) % #CAR_COLORS + 1]), loop = LOOPS[i <= 6 and 1 or (i <= 9 and 2 or 3)], offset = i * 170, speed = 35 + (i % 3) * 8, dir = i % 2 == 0 and 1 or -1 })
 end
 
 -- Дроны
@@ -120,18 +123,28 @@ RunService.RenderStepped:Connect(function(dt)
 		local d = drones[pl]
 		if has and root then
 			if not d then
-				d = { pieces = makeDrone(), pos = root.Position }
+				-- красивый дрон из магазина Roblox (ReplicatedFirst/КлиентШаблоны/drone),
+				-- если его нет — простой из деталей
+				local tpl = game:GetService("ReplicatedFirst"):FindFirstChild("КлиентШаблоны")
+				tpl = tpl and tpl:FindFirstChild("drone")
+				d = { model = tpl and tpl:Clone(), pieces = not tpl and makeDrone() or nil, pos = root.Position }
+				if d.model then d.model.Parent = folder end
 				drones[pl] = d
 			end
 			local target = (root.CFrame * CFrame.new(3, 3 + math.sin(t * 2) * 0.5, 2)).Position
 			d.pos = d.pos:Lerp(target, math.min(1, dt * 5))
-			local cf = CFrame.lookAt(d.pos, d.pos + root.CFrame.LookVector)
-			for i, p in ipairs(d.pieces) do
-				local spin = (i == 3 or i == 4) and CFrame.Angles(0, t * 20, 0) or CFrame.new()
-				p[1].CFrame = cf * p[2] * spin
+			local cf = CFrame.lookAt(d.pos, d.pos + root.CFrame.LookVector) * CFrame.Angles(math.sin(t * 1.5) * 0.08, 0, math.sin(t * 1.1) * 0.08)
+			if d.model then
+				d.model:PivotTo(cf)
+			else
+				for i, p in ipairs(d.pieces) do
+					local spin = (i == 3 or i == 4) and CFrame.Angles(0, t * 20, 0) or CFrame.new()
+					p[1].CFrame = cf * p[2] * spin
+				end
 			end
 		elseif d then
-			for _, p in ipairs(d.pieces) do p[1]:Destroy() end
+			if d.model then d.model:Destroy() end
+			for _, p in ipairs(d.pieces or {}) do p[1]:Destroy() end
 			drones[pl] = nil
 		end
 	end

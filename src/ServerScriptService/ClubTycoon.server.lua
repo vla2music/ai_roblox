@@ -153,6 +153,8 @@ local ITEMS = {
 	  kind="lounge", btn={4, 30} },
 	{ id="sofaset", name="Диван и стулья", en="Sofa & Chairs", cost=7000, income=20, needs="lounge",
 	  kind="sofaset", btn={-2, -9} },
+	{ group="graffiti", name="Граффити", en="Graffiti", kind="graffiti",
+	  pcs={ {32,-34.4,0,32,-27}, {50,-34.4,0,50,-27}, {59.4,6,-90,55,6}, {59.4,26,-90,55,28}, {30,34.4,180,26,31}, {48,34.4,180,44,31}, {-12,34.4,180,-8,31} } },
 	{ group="toprow", name="ПК у стены", en="Wall PC", kind="pcs",
 	  pcs={{19,-31},{25,-31},{31,-31},{37,-31},{43,-31},{49,-31}}, rot=0, btnDz=4.5 },
 
@@ -197,7 +199,7 @@ do
 				single.name = base .. " №" .. n
 				single.en = item.en .. " #" .. n
 				single.pcs = { p }
-				single.btn = { p[1], p[2] + (item.btnDz or -4.5) }
+				single.btn = p[4] and { p[4], p[5] } or { p[1], p[2] + (item.btnDz or -4.5) }
 				table.insert(expanded, single)
 			end
 		else
@@ -255,6 +257,8 @@ local function loadData(userId)
 			end)(result.owned),
 			rebirths = tonumber(result.rebirths) or 0,
 			pcTier = tonumber(result.pcTier) or 1,
+			playTime = tonumber(result.playTime) or 0,
+			totalEarned = tonumber(result.totalEarned) or 0,
 			dailyLast = tonumber(result.dailyLast) or 0,
 			dailyStreak = tonumber(result.dailyStreak) or 0,
 		}
@@ -279,6 +283,7 @@ local function saveData(userId, data)
 		store:SetAsync("p_" .. userId, {
 			money = data.money, owned = data.owned, rebirths = data.rebirths,
 			pcTier = data.pcTier, dailyLast = data.dailyLast, dailyStreak = data.dailyStreak,
+			playTime = data.playTime, totalEarned = data.totalEarned,
 		})
 	end)
 	if not ok then
@@ -558,6 +563,47 @@ end
 -- ЖИВЫЕ ЛЮДИ: посетители за компами, продавец, уборщик, кот
 --=========================================================================
 
+local applySpeedRef = function() end   -- настоящая функция подставится ниже
+
+-- ЭНЕРГИЯ: медленно падает, чем меньше — тем медленнее ходишь.
+-- Пополняется лимонадами (в клубе дороже в 3 раза, чем в киоске через дорогу).
+local plotByPlayerRef = {}
+local function lemonadePrice(plot, kind, mult)
+	return math.max(kind.minPrice, math.floor(plot.income * kind.seconds)) * mult
+end
+
+local function lemonadePrompt(host, kind, mult, plot)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = host
+	local function label(lang, p)
+		prompt.ObjectText = (lang == "ru" and kind.ru or kind.en) .. " +" .. kind.energy .. "⚡"
+		prompt.ActionText = (lang == "ru" and "Купить · " or "Buy · ") .. (p and short(lemonadePrice(p, kind, mult)) or "")
+	end
+	task.spawn(function()
+		while prompt.Parent do
+			if plot then label(plot.lang, plot) else label("en") end
+			task.wait(3)
+		end
+	end)
+	prompt.Triggered:Connect(function(player)
+		local p = plot or plotByPlayerRef[player]
+		if not p or not player:FindFirstChild("leaderstats") then return end
+		local money = player.leaderstats[CONFIG.CURRENCY_NAME]
+		local cost = lemonadePrice(p, kind, mult)
+		if money.Value < cost then return end
+		if (player:GetAttribute("Energy") or 100) >= 100 then return end
+		money.Value -= cost
+		player:SetAttribute("Energy", math.min(100, (player:GetAttribute("Energy") or 100) + kind.energy))
+		applySpeedRef(player)
+	end)
+	return prompt
+end
+_G.ClubLemonadePrompt = lemonadePrompt   -- киоск в городе (City.server.lua)
+
 local ANIM_SIT  = "rbxassetid://2506281703"
 local ANIM_WALK = "rbxassetid://507777826"
 local SKIN = { Color3.fromRGB(234, 184, 146), Color3.fromRGB(198, 140, 100), Color3.fromRGB(141, 85, 56), Color3.fromRGB(255, 213, 170) }
@@ -595,16 +641,64 @@ local function playAnim(npc, id, speed)
 end
 
 -- Посетитель садится в кресло у компа и «играет»
-local function seatVisitor(pc, model)
-	local seat = pc:FindFirstChildWhichIsA("Seat", true)
-	if not seat or math.random() > 0.8 then return end   -- 80% компов заняты
+local seats = {}   -- кресло -> модель, куда сажать; живые/свободные места
+local function fade(npc, to, time)
+	for _, d in ipairs(npc:GetDescendants()) do
+		if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" then
+			TweenService:Create(d, TweenInfo.new(time), { Transparency = to }):Play()
+		elseif d:IsA("Decal") then
+			TweenService:Create(d, TweenInfo.new(time), { Transparency = to }):Play()
+		end
+	end
+end
+
+local function sitDown(seat, model, appear)
 	local npc = makeNPC("Посетитель")
 	if not npc then return end
 	npc.HumanoidRootPart.Anchored = true
 	npc:PivotTo(seat.CFrame * CFrame.new(0, npc.Humanoid.HipHeight + 0.2, 0))
+	if appear then
+		for _, d in ipairs(npc:GetDescendants()) do
+			if (d:IsA("BasePart") and d.Name ~= "HumanoidRootPart") or d:IsA("Decal") then d.Transparency = 1 end
+		end
+	end
 	npc.Parent = model
 	playAnim(npc, ANIM_SIT)
+	if appear then fade(npc, 0, 1.2) end
+	seats[seat].npc = npc
 end
+
+-- Посетитель садится в кресло у компа и «играет»
+local function seatVisitor(pc, model)
+	local seat = pc:FindFirstChildWhichIsA("Seat", true)
+	if not seat then return end
+	seats[seat] = { model = model }
+	if math.random() <= 0.8 then sitDown(seat, model) end   -- 80% компов заняты
+end
+
+-- Люди приходят и уходят: раз в несколько секунд кто-то встаёт и уходит,
+-- а на свободное место садится новый посетитель
+task.spawn(function()
+	while true do
+		task.wait(math.random(4, 9))
+		local list = {}
+		for seat, info in pairs(seats) do
+			if not seat.Parent then seats[seat] = nil else table.insert(list, seat) end
+		end
+		if #list > 0 then
+			local seat = list[math.random(#list)]
+			local info = seats[seat]
+			if info.npc and info.npc.Parent then
+				local npc = info.npc
+				info.npc = nil
+				fade(npc, 1, 1.2)
+				task.delay(1.3, function() npc:Destroy() end)
+			else
+				sitDown(seat, info.model, true)
+			end
+		end
+	end
+end)
 
 -- Ходит по кругу через точки, пока его модель существует
 local function walkLoop(npc, points, speed)
@@ -842,32 +936,29 @@ function builders.outer(item, origin, model, lang)
 		lockedDoor(60, z, false, T(lang, "soon"), Color3.fromRGB(70, 60, 80))
 	end
 
-	-- граффити на внутренней стороне стен
-	local graffiti = {}
-	if templates then
-		for _, child in ipairs(templates:GetChildren()) do
-			if child:IsA("Decal") then table.insert(graffiti, child) end
+end
+
+-- Граффити на стене (покупается за монеты)
+local graffitiDecals
+function builders.graffiti(item, origin, model)
+	if not graffitiDecals then
+		graffitiDecals = {}
+		for _, child in ipairs(templates and templates:GetChildren() or {}) do
+			if child:IsA("Decal") then table.insert(graffitiDecals, child) end
 		end
+		table.sort(graffitiDecals, function(a, b) return a.Name < b.Name end)
 	end
-	local spots = {
-		{ 32, -34.4, 0 },    -- верхняя стена, над рядом из 6 ПК
-		{ 59.4, 6, -90 },    -- правая стена
-		{ 30, 34.4, 180 },   -- нижняя стена, у общего зала
-		{ -12, 34.4, 180 },  -- нижняя стена, у админа
-	}
-	for i, spot in ipairs(spots) do
-		if #graffiti == 0 then break end
-		local panel = makePart({
-			Size = Vector3.new(16, 10, 0.2),
-			CFrame = at(origin, spot[1], 8.5, spot[2]) * CFrame.Angles(0, math.rad(spot[3]), 0),
-			Transparency = 1,
-			CanCollide = false,
-			Parent = model,
-		})
-		local decal = graffiti[(i - 1) % #graffiti + 1]:Clone()
-		decal.Face = Enum.NormalId.Back
-		decal.Parent = panel
-	end
+	if #graffitiDecals == 0 then return end
+	local spot = item.pcs[1]
+	local panel = makePart({
+		Size = Vector3.new(16, 10, 0.2),
+		CFrame = at(origin, spot[1], 8.5, spot[2]) * CFrame.Angles(0, math.rad(spot[3]), 0),
+		Transparency = 1, CanCollide = false, Parent = model,
+	})
+	local n = tonumber(item.id:match("_(%d+)$")) or 1
+	local decal = graffitiDecals[(n - 1) % #graffitiDecals + 1]:Clone()
+	decal.Face = Enum.NormalId.Back
+	decal.Parent = panel
 end
 
 -- Комната: пол своего цвета + стены с дверью + начинка
@@ -989,7 +1080,7 @@ function builders.sofaset(item, origin, model)
 end
 
 -- Два магазина у перегородки
-function builders.shops(item, origin, model)
+function builders.shops(item, origin, model, lang, plot)
 	for _, z in ipairs({ -9, -2.5 }) do
 		local cf = at(origin, -15, 0, z) * CFrame.Angles(0, math.rad(90), 0)
 		local m = cloneTemplate("vending")
@@ -1000,6 +1091,18 @@ function builders.shops(item, origin, model)
 			makePart({ Size = Vector3.new(4, 8, 3), CFrame = cf * CFrame.new(0, 4, 0), Color = Color3.fromRGB(230, 150, 30), Parent = model })
 		end
 	end
+	-- лимонады: у автоматов и продавца, в клубе цена x3 от уличного киоска
+	if plot then
+		local spots = {}
+		for _, m in ipairs(model:GetChildren()) do
+			if m:IsA("Model") then table.insert(spots, m:FindFirstChildWhichIsA("BasePart", true)) end
+		end
+		for k, kind in ipairs(Shared.LEMONADES) do
+			local host = spots[k] or spots[1]
+			if host then lemonadePrompt(host, kind, 3, plot) end
+		end
+	end
+
 	-- продавец стоит рядом с автоматами
 	local npc = makeNPC("Продавец", Color3.fromRGB(230, 60, 60), Color3.fromRGB(40, 40, 50))
 	if npc then
@@ -1084,7 +1187,7 @@ plotsFolder.Name = "Участки"
 plotsFolder.Parent = workspace
 
 local plots = {}          -- список всех участков
-local plotByPlayer = {}   -- игрок -> участок
+local plotByPlayer = plotByPlayerRef   -- игрок -> участок
 
 local function createPlot(index)
 	local origin = CFrame.new(
@@ -1227,6 +1330,27 @@ local function createPlot(index)
 		passCards[pass.key] = { title = title, desc = desc, price = price, prompt = prompt }
 	end
 
+	-- площадки «доход за N часов» за Robux (наступил — открылась покупка)
+	local padLabels = {}
+	for k, pack in ipairs(Shared.COIN_PACKS) do
+		local pad = box(model, origin, Vector3.new(7, 0.8, 7), -48 + (k - 1) * 7, 0.4, 41, Color3.fromRGB(255, 220, 40), Enum.Material.Neon)
+		pad.Shape = Enum.PartType.Cylinder
+		pad.Size = Vector3.new(0.8, 8, 8)
+		pad.CFrame = at(origin, -48 + (k - 1) * 7, 0.4, 41) * CFrame.Angles(0, 0, math.rad(90))
+		local lbl = addLabel(pad, "", Color3.fromRGB(120, 255, 140), 0)
+		lbl.Parent.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+		lbl.Parent.Size = UDim2.new(0, 160, 0, 60)
+		padLabels[k] = { label = lbl, pack = pack }
+		local cooldown = {}
+		pad.Touched:Connect(function(hit)
+			local player = Players:GetPlayerFromCharacter(hit.Parent)
+			if not player or pack.id == 0 then return end
+			if cooldown[player] and os.clock() - cooldown[player] < 5 then return end
+			cooldown[player] = os.clock()
+			MarketplaceService:PromptProductPurchase(player, pack.id)
+		end)
+	end
+
 	-- стрелка над следующей покупкой
 	local arrow = makePart({
 		Name = "Стрелка",
@@ -1253,6 +1377,7 @@ local function createPlot(index)
 		coinFolder = coinFolder,
 		arrow      = arrow,
 		passCards  = passCards,
+		padLabels  = padLabels,
 		crowd      = crowd,
 		lastClick  = 0,
 		lang       = "en",
@@ -1380,6 +1505,9 @@ local function recalcIncome(plot)
 		if it and it.kind == "rack" then boost += 0.1 end
 	end
 	local rebirthBoost = 1 + (plot.rebirths or 0)   -- ребёрт: x2, x3, x4...
+	if plot.owner then
+		boost += (plot.owner:GetAttribute("FriendBoost") or 0) + (plot.owner:GetAttribute("PremiumBoost") or 0)
+	end
 	plot.income = math.floor(total * boost * plot.multiplier * rebirthBoost)
 
 	if plot.owner then
@@ -1647,9 +1775,13 @@ end
 local function applySpeed(player)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.WalkSpeed = hasPass(player, "speed") and 28 or 16
+		local speed = hasPass(player, "speed") and 28 or 16
+		local e = player:GetAttribute("Energy") or 100
+		speed *= e > 50 and 1 or (e > 20 and 0.8 or (e > 0 and 0.6 or 0.45))
+		humanoid.WalkSpeed = speed
 	end
 end
+applySpeedRef = applySpeed
 
 -- Надписи на табло: язык владельца участка, «куплено» или цена
 local function refreshPassBoard(plot)
@@ -1721,6 +1853,15 @@ local function onPlayerAdded(player)
 	if data.loadFailed then noSave[player.UserId] = true end
 	money.Value = data.money
 	rebirthsValue.Value = data.rebirths
+	player:SetAttribute("Energy", 100)
+	player:SetAttribute("PlayTime", data.playTime or 0)
+	player:SetAttribute("TotalEarned", data.totalEarned or 0)
+	local lastMoney = money.Value
+	money:GetPropertyChangedSignal("Value"):Connect(function()
+		local diff = money.Value - lastMoney
+		lastMoney = money.Value
+		if diff > 0 then player:SetAttribute("TotalEarned", (player:GetAttribute("TotalEarned") or 0) + diff) end
+	end)
 
 	local plot = findFreePlot()
 	if not plot then
@@ -1799,6 +1940,8 @@ local function collectData(player)
 		owned = plot and plot.owned or {},
 		rebirths = rebirths and rebirths.Value or 0,
 		pcTier = plot and plot.pcTier or 1,
+		playTime = player:GetAttribute("PlayTime") or 0,
+		totalEarned = player:GetAttribute("TotalEarned") or 0,
 		dailyLast = plot and plot.dailyLast or 0,
 		dailyStreak = plot and plot.dailyStreak or 0,
 	}
@@ -1979,6 +2122,58 @@ Players.PlayerRemoving:Connect(onPlayerRemoving)
 for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayerAdded, player)
 end
+
+-- Бонусы: +10% за каждого друга на сервере (до +50%), +10% за Roblox Premium
+local function refreshBoosts()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local friends = 0
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player then
+				local ok, yes = pcall(function() return player:IsFriendsWith(other.UserId) end)
+				if ok and yes then friends += 1 end
+			end
+		end
+		player:SetAttribute("FriendBoost", math.min(0.5, friends * 0.1))
+		player:SetAttribute("PremiumBoost", player.MembershipType == Enum.MembershipType.Premium and 0.1 or 0)
+		local plot = plotByPlayer[player]
+		if plot then recalcIncome(plot) end
+	end
+end
+Players.PlayerAdded:Connect(function() task.wait(3) refreshBoosts() end)
+Players.PlayerRemoving:Connect(function() task.defer(refreshBoosts) end)
+task.delay(3, refreshBoosts)
+
+-- энергия падает: 100 -> 0 примерно за 20 минут; время в игре растёт
+task.spawn(function()
+	while true do
+		task.wait(6)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local before = player:GetAttribute("Energy")
+			if before then
+				local e = math.max(0, before - 0.5)
+				player:SetAttribute("Energy", e)
+				if (before > 50) ~= (e > 50) or (before > 20) ~= (e > 20) or (before > 0) ~= (e > 0) then
+					applySpeed(player)
+				end
+			end
+			player:SetAttribute("PlayTime", (player:GetAttribute("PlayTime") or 0) + 6)
+		end
+	end
+end)
+
+-- надписи на площадках за Robux: сколько монет получишь
+task.spawn(function()
+	while true do
+		for _, plot in ipairs(plots) do
+			for _, p in ipairs(plot.padLabels) do
+				local amount = math.max(1000, math.floor(plot.income * 60 * p.pack.minutes))
+				local period = p.pack.minutes >= 60 and (p.pack.minutes // 60 .. (plot.lang == "ru" and " ч" or "h")) or (p.pack.minutes .. (plot.lang == "ru" and " мин" or " min"))
+				p.label.Text = "+" .. short(amount) .. "\n" .. period .. " · R$" .. p.pack.price
+			end
+		end
+		task.wait(5)
+	end
+end)
 
 -- раз в секунду банкомат сам выбрасывает монету размером с доход
 task.spawn(function()

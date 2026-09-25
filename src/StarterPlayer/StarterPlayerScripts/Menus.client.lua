@@ -461,3 +461,51 @@ player:GetAttributeChangedSignal("CatBonus"):Connect(function()
 	task.delay(2, function() msg:Destroy() end)
 	player:SetAttribute("CatBonus", nil)
 end)
+
+--=========================================================================
+-- Слева внизу: бонус друзей и Premium, справа внизу: энергия
+--=========================================================================
+
+local function boostIcon(icon, x, attr, tip)
+	local f = Instance.new("Frame")
+	f.Size = UDim2.new(0, 84, 0, 84)
+	f.Position = UDim2.new(0, x, 1, -96)
+	f.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
+	f.Parent = screen
+	corner(f, 16)
+	stroke(f, Color3.new(1, 1, 1), 3)
+	text(f, { Size = UDim2.new(1, 0, 0.62, 0), Text = icon })
+	local l = text(f, { Size = UDim2.new(1, 0, 0.36, 0), Position = UDim2.new(0, 0, 0.64, 0), Text = "+0%" })
+	local st = Instance.new("UIStroke") st.Thickness = 2 st.Parent = l
+	local function refresh() l.Text = "+" .. math.floor((player:GetAttribute(attr) or 0) * 100 + 0.5) .. "%" end
+	player:GetAttributeChangedSignal(attr):Connect(refresh)
+	refresh()
+	local hint = text(f, { Size = UDim2.new(0, 260, 0, 26), Position = UDim2.new(0, 0, 0, -30), Text = tip, Visible = false, Font = Enum.Font.GothamBold })
+	f.MouseEnter:Connect(function() hint.Visible = true end)
+	f.MouseLeave:Connect(function() hint.Visible = false end)
+end
+boostIcon("👥", 12, "FriendBoost", L("+10% за каждого друга на сервере", "+10% per friend in server"))
+boostIcon("⭐", 106, "PremiumBoost", L("+10% с Roblox Premium", "+10% with Roblox Premium"))
+
+-- шкала энергии
+local eFrame = Instance.new("Frame")
+eFrame.Size = UDim2.new(0, 240, 0, 36)
+eFrame.Position = UDim2.new(1, -256, 1, -52)
+eFrame.BackgroundColor3 = Color3.fromRGB(24, 22, 32)
+eFrame.Parent = screen
+corner(eFrame, 10)
+stroke(eFrame, Color3.fromRGB(255, 230, 80), 2)
+local eFill = Instance.new("Frame")
+eFill.Size = UDim2.new(1, 0, 1, 0)
+eFill.BackgroundColor3 = Color3.fromRGB(80, 220, 90)
+eFill.Parent = eFrame
+corner(eFill, 10)
+local eText = text(eFrame, { Size = UDim2.new(1, -12, 0.8, 0), Position = UDim2.new(0, 6, 0.1, 0), Text = "", ZIndex = 2 })
+local function refreshEnergy()
+	local e = player:GetAttribute("Energy") or 100
+	TweenService:Create(eFill, TweenInfo.new(0.3), { Size = UDim2.new(e / 100, 0, 1, 0) }):Play()
+	eFill.BackgroundColor3 = e > 50 and Color3.fromRGB(80, 220, 90) or (e > 20 and Color3.fromRGB(240, 190, 40) or Color3.fromRGB(230, 60, 60))
+	eText.Text = "⚡ " .. math.floor(e) .. "%" .. (e <= 20 and L("  — выпей лимонад!", "  — drink lemonade!") or "")
+end
+player:GetAttributeChangedSignal("Energy"):Connect(refreshEnergy)
+refreshEnergy()

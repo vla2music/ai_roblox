@@ -47,4 +47,11 @@ Shared.DAILY = {
 Shared.DAILY_COOLDOWN = 20 * 3600    -- забирать можно раз в 20 часов
 Shared.DAILY_RESET    = 48 * 3600    -- пропустил 2 дня — серия с начала
 
+-- Лимонады: сколько энергии дают, цена = доход за N секунд (в клубе x3)
+Shared.LEMONADES = {
+	{ order = 1, key = "lemon", ru = "Лимонад",         en = "Lemonade",       energy = 25,  seconds = 5,  minPrice = 10, color = Color3.fromRGB(255, 235, 80) },
+	{ order = 2, key = "berry", ru = "Ягодный лимонад", en = "Berry Lemonade", energy = 50,  seconds = 9,  minPrice = 20, color = Color3.fromRGB(230, 60, 140) },
+	{ order = 3, key = "mega",  ru = "Мега-лимонад",    en = "Mega Lemonade",  energy = 100, seconds = 16, minPrice = 35, color = Color3.fromRGB(80, 220, 255) },
+}
+
 return Shared
