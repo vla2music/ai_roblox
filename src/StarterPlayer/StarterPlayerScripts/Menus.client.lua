@@ -589,3 +589,16 @@ end
 player:GetAttributeChangedSignal("NextPos"):Connect(hookBeam)
 player.CharacterAdded:Connect(function(c) c:WaitForChild("HumanoidRootPart") hookBeam() end)
 task.spawn(function() task.wait(2) hookBeam() end)
+
+-- Цены лимонадов в киосках считаем от дохода именно этого игрока
+local CollectionService = game:GetService("CollectionService")
+task.spawn(function()
+	while true do
+		local inc = player.Stats.Income.Value
+		for _, pr in ipairs(CollectionService:GetTagged("Lemonade")) do
+			local price = math.max(pr:GetAttribute("LemonMin"), math.floor(inc * pr:GetAttribute("LemonSeconds"))) * pr:GetAttribute("LemonMult")
+			pr.ActionText = L("Купить · ", "Buy · ") .. short(price)
+		end
+		task.wait(2)
+	end
+end)

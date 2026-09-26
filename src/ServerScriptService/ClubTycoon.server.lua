@@ -64,8 +64,8 @@ local CONFIG = {
 	SOUND_COLLECT  = "rbxassetid://119832205290967",  -- звон монетки (загружен VLA2music)
 	-- Гул людей в клубе: включается с первым ПК и растёт с каждым новым.
 	SOUND_CROWD    = "rbxassetid://101285875048662",  -- гул клуба (загружен VLA2music)
-	CROWD_VOLUME_MIN = 0.12,
-	CROWD_VOLUME_MAX = 0.45,
+	CROWD_VOLUME_MIN = 0.13,
+	CROWD_VOLUME_MAX = 0.5,
 
 	-- Ковролин для пола (создан в Studio, лежит в MaterialService)
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
@@ -90,8 +90,8 @@ local CONFIG = {
 
 	-- Банкомат: сам выбрасывает монетки на площадку,
 	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
-	CLICK_COOLDOWN = 0.25,   -- как часто можно жать E (секунды)
-	CLICK_BONUS    = 0.3,    -- бонус за нажатие = доход в секунду * это число
+	CLICK_COOLDOWN = 0.4,   -- как часто можно жать E (секунды)
+	CLICK_BONUS    = 0.1,    -- бонус за нажатие = доход в секунду * это число
 	MAX_COINS      = 40,     -- больше монет на площадке не лежит, они «слипаются»
 
 	SERVER_BOOST   = 1.5,
@@ -210,10 +210,10 @@ do
 end
 
 -- Экономика: цена растёт в 1.22 раза с каждой покупкой, окупаемость
--- покупки = 25 + 5*номер секунд. Весь этаж ≈ 24 мин без нажатий E,
--- ≈ 12-15 мин если активно жать E и собирать монеты.
+-- покупки = 30 + 6*номер секунд. Весь этаж ≈ 30 мин без нажатий E,
+-- ≈ 25 мин при активной игре (E, мини-игры, сундук).
 do
-	local C0, GROWTH, PB0, PBK = 12, 1.22, 25, 5
+	local C0, GROWTH, PB0, PBK = 12, 1.22, 30, 6   -- первый проход ≈25 мин (см. комментарий выше)
 	for i, item in ipairs(ITEMS) do
 		item.needs = i > 1 and ITEMS[i - 1].id or nil
 		if i == 1 then
@@ -610,6 +610,11 @@ local function lemonadePrompt(host, kind, mult, plot)
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = host
+	prompt:SetAttribute("LemonSeconds", kind.seconds)
+	prompt:SetAttribute("LemonMin", kind.minPrice)
+	prompt:SetAttribute("LemonMult", mult)
+	prompt:SetAttribute("LemonEnergy", kind.energy)
+	game:GetService("CollectionService"):AddTag(prompt, "Lemonade")
 	local function label(lang, p)
 		prompt.ObjectText = (lang == "ru" and kind.ru or kind.en) .. " +" .. kind.energy .. "⚡"
 		prompt.ActionText = (lang == "ru" and "Купить · " or "Buy · ") .. (p and short(lemonadePrice(p, kind, mult)) or "")
@@ -1059,6 +1064,8 @@ function builders.rack(item, origin, model)
 end
 
 function builders.stream(item, origin, model)
+	local tag = box(model, origin, Vector3.new(1, 1, 1), -50, 13, 11, Color3.new(), nil, { Transparency = 1, CanCollide = false })
+	addLabel(tag, "🔴 STREAM ROOM", Color3.fromRGB(255, 70, 80), 0)
 	builders.pcs({ pcs = { { -50, 8 } }, rot = 0, color = Color3.fromRGB(180, 80, 255) }, origin, model)
 	-- кольцевая лампа
 	local ring = box(model, origin, Vector3.new(0.4, 3.2, 3.2), -44.5, 6, 8, Color3.fromRGB(255, 250, 240), Enum.Material.Neon, { Shape = Enum.PartType.Cylinder })
@@ -1077,6 +1084,8 @@ function builders.console(item, origin, model)
 end
 
 function builders.vip(item, origin, model)
+	local tag = box(model, origin, Vector3.new(1, 1, 1), -50, 13, -5, Color3.new(), nil, { Transparency = 1, CanCollide = false })
+	addLabel(tag, "👑 VIP SOLO", Color3.fromRGB(255, 215, 80), 0)
 	box(model, origin, Vector3.new(14, 0.1, 12), -50, 0.25, -6, Color3.fromRGB(150, 20, 40), Enum.Material.Fabric)
 	builders.pcs({ pcs = { { -50, -9 } }, rot = 0, color = Color3.fromRGB(255, 200, 60) }, origin, model)
 	local plate = box(model, origin, Vector3.new(8, 2, 0.3), -50, 9, -13.4, Color3.fromRGB(30, 25, 10))
@@ -1087,6 +1096,7 @@ end
 function builders.lounge(item, origin, model, lang, plot)
 	if plot then spawnCat(origin, model, plot) end
 	sofa(model, origin, 0, 14, -90, Color3.fromRGB(70, 50, 110))
+	box(model, origin, Vector3.new(4.2, 0.3, 10.4), 0, 0.15, 14, Color3.fromRGB(255, 220, 40), Enum.Material.Neon, { CanCollide = false })
 	box(model, origin, Vector3.new(3, 1.6, 7), 5.5, 0.8, 14, Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
 	tv(model, origin, 10.5, 5, 14, 90, 10)
 	box(model, origin, Vector3.new(1, 3.5, 1), 10.5, 1.75, 14, Color3.fromRGB(30, 30, 35))
@@ -1520,9 +1530,9 @@ local function refreshButtons(plot)
 		local sum, n, started = 0, 0, false
 		for _, item in ipairs(ITEMS) do
 			if item == nextItem then started = true end
-			if started and n < math.ceil(#ITEMS / 3) then sum += item.cost n += 1 end
+			if started and n < math.ceil(#ITEMS / 6) then sum += item.cost n += 1 end
 		end
-		plot.owner:SetAttribute("ChestValue", sum)
+		plot.owner:SetAttribute("ChestValue", sum)   -- ≈ шестая часть клуба
 	end
 
 	if next_ then
@@ -1566,7 +1576,7 @@ local function recalcIncome(plot)
 		local it = ITEM_BY_ID[id]
 		if it and it.kind == "rack" then boost += 0.1 end
 	end
-	local rebirthBoost = 1 + (plot.rebirths or 0)   -- ребёрт: x2, x3, x4...
+	local rebirthBoost = 1 + 0.5 * (plot.rebirths or 0)   -- ребёрт: x1.5, x2, x2.5...
 	if plot.owner then
 		boost += (plot.owner:GetAttribute("FriendBoost") or 0) + (plot.owner:GetAttribute("PremiumBoost") or 0)
 	end

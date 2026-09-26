@@ -30,6 +30,7 @@ local function part(size, color, mat, parent)
 	return p
 end
 
+local CAR_SOUND = ""   -- ID звука мотора (зацикленный), загрузит VLA2music
 local CAR_COLORS = { Color3.fromRGB(255, 200, 30), Color3.fromRGB(220, 40, 50), Color3.fromRGB(40, 110, 230), Color3.fromRGB(240, 240, 245), Color3.fromRGB(30, 30, 35), Color3.fromRGB(60, 200, 120) }
 local function makeCar(color)
 	local pieces = {}
@@ -42,6 +43,19 @@ local function makeCar(color)
 	add(Vector3.new(1.2, 0.5, 0.2), CFrame.new(2, 1.8, 5.55), Color3.fromRGB(255, 30, 30), Enum.Material.Neon)
 	for _, w in ipairs({ { -3, -3.5 }, { 3, -3.5 }, { -3, 3.5 }, { 3, 3.5 } }) do
 		add(Vector3.new(0.8, 1.6, 1.6), CFrame.new(w[1], 0.8, w[2]), Color3.fromRGB(20, 20, 20))
+	end
+	-- рёв мотора: громко рядом, затихает с расстоянием
+	if CAR_SOUND ~= "" then
+		local snd = Instance.new("Sound")
+		snd.SoundId = CAR_SOUND
+		snd.Looped = true
+		snd.Volume = 0.6
+		snd.RollOffMode = Enum.RollOffMode.InverseTapered
+		snd.RollOffMinDistance = 8
+		snd.RollOffMaxDistance = 70
+		snd.PlaybackSpeed = 0.9 + math.random() * 0.3
+		snd.Parent = pieces[1][1]
+		snd:Play()
 	end
 	local light = Instance.new("SpotLight")
 	light.Face = Enum.NormalId.Front
