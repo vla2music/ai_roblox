@@ -174,6 +174,7 @@ local function place(name, cf, windowColors, glow)
 	if not tpl then return end
 	local m = tpl:Clone()
 	m:PivotTo(cf)
+	m:SetAttribute("Ship", name)   -- сундук на палубу ставит Rooftops.server.lua
 	m.Parent = sea
 	glowWindows(m, windowColors)
 	light(m, glow, 120)
@@ -255,4 +256,5 @@ prompt.Triggered:Connect(function(player)
 	player:SetAttribute("Parachute", (player:GetAttribute("Parachute") or 0) + 1)
 end)
 
+workspace:SetAttribute("SeaReady", true)
 print("[Море] Набережная, лайнер, яхты и башня готовы")

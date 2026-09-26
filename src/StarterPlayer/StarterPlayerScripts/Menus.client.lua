@@ -450,6 +450,18 @@ player:GetAttributeChangedSignal("ChestBonus"):Connect(function()
 	player:SetAttribute("ChestBonus", nil)
 end)
 
+-- сундук на крыше/палубе уже открыт: подождать
+player:GetAttributeChangedSignal("ChestWait"):Connect(function()
+	local v = player:GetAttribute("ChestWait")
+	if not v then return end
+	local msg = text(screen, {
+		Size = UDim2.new(0, 520, 0, 50), Position = UDim2.new(0.5, 0, 0.3, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+		Text = L("⏳ Сундук пуст. Загляни через " .. v .. " мин", "⏳ Empty. Come back in " .. v .. " min"), TextColor3 = Color3.fromRGB(230, 230, 240),
+	})
+	task.delay(2.5, function() msg:Destroy() end)
+	player:SetAttribute("ChestWait", nil)
+end)
+
 player:GetAttributeChangedSignal("CatBonus"):Connect(function()
 	local v = player:GetAttribute("CatBonus")
 	if not v then return end

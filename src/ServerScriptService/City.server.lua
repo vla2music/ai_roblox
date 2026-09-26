@@ -129,7 +129,8 @@ local WINDOW_ON = { Color3.fromRGB(255, 225, 150), Color3.fromRGB(160, 220, 255)
 local function tower(x, z, w, d, h, signText)
 	local neon = NEON[rng:NextInteger(1, #NEON)]
 	local base = Vector3.new(x, GROUND + 0.8, z)
-	part({ Size = Vector3.new(w, h, d), Position = base + Vector3.new(0, h / 2, 0), Color = Color3.fromRGB(28, 26, 40), Material = Enum.Material.Glass, Reflectance = 0.15 })
+	-- «Небоскрёб» ищет Rooftops.server.lua: лифт, парашют и сундук на крыше
+	part({ Name = "Небоскрёб", Size = Vector3.new(w, h, d), Position = base + Vector3.new(0, h / 2, 0), Color = Color3.fromRGB(28, 26, 40), Material = Enum.Material.Glass, Reflectance = 0.15 })
 	-- неоновые рёбра по углам и по крыше
 	for _, c in ipairs({ { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } }) do
 		part({ Size = Vector3.new(0.6, h, 0.6), Position = base + Vector3.new(c[1] * w / 2, h / 2, c[2] * d / 2), Color = neon, Material = Enum.Material.Neon, CanCollide = false })
@@ -642,4 +643,5 @@ for _, e in ipairs({ { -160, -1 }, { 1420, 1 } }) do
 	end
 end
 
+workspace:SetAttribute("CityReady", true)
 print("[Город] Дорожка, город, колесо, горки и рекорды готовы")
