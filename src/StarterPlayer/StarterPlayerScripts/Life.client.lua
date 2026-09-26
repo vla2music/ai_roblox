@@ -30,7 +30,7 @@ local function part(size, color, mat, parent)
 	return p
 end
 
-local CAR_SOUND = ""   -- ID звука мотора (зацикленный), загрузит VLA2music
+local CAR_SOUND = "rbxassetid://86349654349963"   -- ID звука мотора (зацикленный), загрузит VLA2music
 local CAR_COLORS = { Color3.fromRGB(255, 200, 30), Color3.fromRGB(220, 40, 50), Color3.fromRGB(40, 110, 230), Color3.fromRGB(240, 240, 245), Color3.fromRGB(30, 30, 35), Color3.fromRGB(60, 200, 120) }
 local function makeCar(color)
 	local pieces = {}
