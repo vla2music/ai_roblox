@@ -43,6 +43,7 @@ local COUNT = 36
 for i = 1, COUNT do
 	local angle = (i / COUNT) * math.pi * 2 + rng:NextNumber(-0.05, 0.05)
 	local radius = rng:NextNumber(110, 190)
+	if math.sin(angle) < -0.2 then continue end   -- за клубами вместо гор — море (Sea.server.lua)
 	local pos = Vector3.new(
 		CENTER.X + math.cos(angle) * (MOUNTAIN_RX + rng:NextNumber(-40, 60)),
 		-radius * 0.35,
@@ -104,8 +105,8 @@ end
 
 -- два водопада позади участков и два спереди
 table.sort(mountains, function(a, b) return a.pos.Z < b.pos.Z end)
-waterfall(mountains[3])
-waterfall(mountains[6])
+waterfall(mountains[#mountains - 8])
+waterfall(mountains[#mountains - 11])
 waterfall(mountains[#mountains - 2])
 waterfall(mountains[#mountains - 5])
 
@@ -147,6 +148,7 @@ while placed < 140 do
 	local z = rng:NextNumber(-MOUNTAIN_RZ * 0.8, MOUNTAIN_RZ * 0.8)
 	local insideEllipse = ((x - CENTER.X) / (MOUNTAIN_RX * 0.85)) ^ 2 + (z / (MOUNTAIN_RZ * 0.8)) ^ 2 < 1
 	local nearPlots = x > PLOTS_FROM_X - 30 and x < PLOTS_TO_X + 30 and math.abs(z) < 110
+		or z < -85   -- набережная и море
 		or z > 90   -- спереди от клубов — город, аттракционы и дорожка
 	if insideEllipse and not nearPlots then
 		makeTree(Vector3.new(x, GROUND, z))
@@ -169,4 +171,5 @@ terrain.WaterTransparency = 0.4
 terrain.WaterWaveSize = 0.2
 terrain.WaterWaveSpeed = 12
 
+workspace:SetAttribute("WorldReady", true)
 print("[Мир] Горы, водопады и деревья готовы")

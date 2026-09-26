@@ -7,7 +7,7 @@
 local RunService = game:GetService("RunService")
 
 local CENTER_X = 600      -- середина ряда участков
-local FLOCKS   = 5
+local FLOCKS   = 9   -- 5 стай птиц над клубами + 4 стаи чаек над морем
 local PER_FLOCK = 4
 
 local folder = Instance.new("Folder")
@@ -31,7 +31,9 @@ end
 local birds = {}
 for f = 1, FLOCKS do
 	local flock = {
-		center = Vector3.new(CENTER_X + math.random(-700, 700), math.random(70, 130), math.random(-250, 250)),
+		center = f > 5 and Vector3.new(CENTER_X + math.random(-600, 600), math.random(25, 60), math.random(-450, -180))
+			or Vector3.new(CENTER_X + math.random(-700, 700), math.random(70, 130), math.random(-250, 250)),
+		gull = f > 5,
 		radius = math.random(60, 160),
 		speed = (math.random() * 0.15 + 0.1) * (math.random() < 0.5 and -1 or 1),
 		phase = math.random() * math.pi * 2,
@@ -41,9 +43,9 @@ for f = 1, FLOCKS do
 			flock = flock,
 			offset = Vector3.new(math.random(-8, 8), math.random(-4, 4), math.random(-8, 8)),
 			flap = math.random() * math.pi * 2,
-			body = part(Vector3.new(0.7, 0.5, 1.6), Color3.fromRGB(40, 40, 45)),
-			left = part(Vector3.new(2.2, 0.1, 0.9), Color3.fromRGB(55, 55, 60)),
-			right = part(Vector3.new(2.2, 0.1, 0.9), Color3.fromRGB(55, 55, 60)),
+			body = part(Vector3.new(0.7, 0.5, 1.6), f > 5 and Color3.fromRGB(245, 245, 250) or Color3.fromRGB(40, 40, 45)),
+			left = part(Vector3.new(2.2, 0.1, 0.9), f > 5 and Color3.fromRGB(220, 222, 230) or Color3.fromRGB(55, 55, 60)),
+			right = part(Vector3.new(2.2, 0.1, 0.9), f > 5 and Color3.fromRGB(220, 222, 230) or Color3.fromRGB(55, 55, 60)),
 		})
 	end
 end

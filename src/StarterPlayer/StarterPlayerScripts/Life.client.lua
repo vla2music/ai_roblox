@@ -32,7 +32,39 @@ end
 
 local CAR_SOUND = "rbxassetid://86349654349963"   -- ID звука мотора (зацикленный), загрузит VLA2music
 local CAR_COLORS = { Color3.fromRGB(255, 200, 30), Color3.fromRGB(220, 40, 50), Color3.fromRGB(40, 110, 230), Color3.fromRGB(240, 240, 245), Color3.fromRGB(30, 30, 35), Color3.fromRGB(60, 200, 120) }
-local function makeCar(color)
+local carTemplates = {}
+do
+	local rf = game:GetService("ReplicatedFirst"):WaitForChild("КлиентШаблоны", 10)
+	local f = rf and rf:FindFirstChild("Машины")
+	if f then carTemplates = f:GetChildren() end
+end
+
+local function makeCar(color, index)
+	-- красивая машина из магазина Roblox, если есть
+	if #carTemplates > 0 then
+		local m = carTemplates[(index - 1) % #carTemplates + 1]:Clone()
+		m.Parent = folder
+		local body = m:FindFirstChildWhichIsA("BasePart", true)
+		if CAR_SOUND ~= "" and body then
+			local snd = Instance.new("Sound")
+			snd.SoundId = CAR_SOUND
+			snd.Looped = true
+			snd.Volume = 0.6
+			snd.RollOffMode = Enum.RollOffMode.InverseTapered
+			snd.RollOffMinDistance = 8
+			snd.RollOffMaxDistance = 70
+			snd.PlaybackSpeed = 0.9 + math.random() * 0.3
+			snd.Parent = body
+			snd:Play()
+		end
+		-- фары ночью
+		local light = Instance.new("SpotLight")
+		light.Face = Enum.NormalId.Front
+		light.Range = 30
+		light.Brightness = 2
+		if body then light.Parent = body end
+		return { model = m }
+	end
 	local pieces = {}
 	local function add(size, offset, c, mat) table.insert(pieces, { part(size, c, mat), offset }) end
 	add(Vector3.new(6, 2, 11), CFrame.new(0, 1.6, 0), color, Enum.Material.Metal)
@@ -96,7 +128,7 @@ end
 
 local cars = {}
 for i = 1, 14 do
-	table.insert(cars, { pieces = makeCar(CAR_COLORS[(i - 1) % #CAR_COLORS + 1]), loop = LOOPS[i <= 6 and 1 or (i <= 9 and 2 or (i <= 11 and 3 or 4))], offset = i * 170, speed = 35 + (i % 3) * 8, dir = i % 2 == 0 and 1 or -1 })
+	table.insert(cars, { pieces = makeCar(CAR_COLORS[(i - 1) % #CAR_COLORS + 1], i), loop = LOOPS[i <= 6 and 1 or (i <= 9 and 2 or (i <= 11 and 3 or 4))], offset = i * 170, speed = 35 + (i % 3) * 8, dir = i % 2 == 0 and 1 or -1 })
 end
 
 -- Дроны
@@ -133,7 +165,11 @@ RunService.RenderStepped:Connect(function(dt)
 		if c.dir < 0 then dir = -dir end
 		pos += dir:Cross(Vector3.yAxis) * (c.loop[3] and 3.2 or 6)   -- правая полоса
 		local cf = CFrame.lookAt(pos, pos + dir)
-		for _, p in ipairs(c.pieces) do p[1].CFrame = cf * p[2] end
+		if c.pieces.model then
+			c.pieces.model:PivotTo(cf * CFrame.new(0, -0.8, 0))
+		else
+			for _, p in ipairs(c.pieces) do p[1].CFrame = cf * p[2] end
+		end
 	end
 	for _, pl in ipairs(Players:GetPlayers()) do
 		local has = pl:GetAttribute("Pass_pet") == true
