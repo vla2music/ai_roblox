@@ -2209,6 +2209,12 @@ local MINIGAMES = {
 	-- это заметная помощь, но не ломает прогресс.
 	click = { maxScore = 45, good = 25, time = 15 },
 	math  = { maxScore = 25, good = 10, time = 30 },
+	-- игровой зал ARCADE (Arcade.client.lua). rate — сколько очков
+	-- максимум можно набрать за секунду (для игр без фиксированной длины)
+	shoot   = { maxScore = 40, good = 18, time = 30 },
+	timing  = { maxScore = 10, good = 7,  time = 5, rate = 0.8 },
+	stacker = { maxScore = 30, good = 12, time = 4, rate = 1.5 },
+	hockey  = { maxScore = 10, good = 5,  time = 60 },
 }
 local MINIGAME_COOLDOWN = 300
 local MINIGAME_TIME = 60
@@ -2233,6 +2239,7 @@ miniGame.OnServerInvoke = function(player, action, name, score)
 		miniStart[player][name] = nil
 		if os.clock() - started < cfg.time - 3 then return nil end   -- слишком рано — не засчитываем
 		score = math.clamp(math.floor(tonumber(score) or 0), 0, cfg.maxScore)
+		if cfg.rate then score = math.min(score, math.floor((os.clock() - started) * cfg.rate)) end
 		local pool = math.max(plot.income * 60, (player:GetAttribute("NextCost") or 0) * 0.75, 50)
 		local reward = math.floor(pool * score / cfg.good)
 		player.leaderstats[CONFIG.CURRENCY_NAME].Value += reward

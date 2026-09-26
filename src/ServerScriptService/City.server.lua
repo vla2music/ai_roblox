@@ -174,9 +174,13 @@ local function tower(x, z, w, d, h, signText)
 end
 
 local si = 1
+local ARCADE_X = 562
 for x = 330, 910, 58 do
 	for row, z in ipairs({ 205, 265, 325 }) do
-		if rng:NextNumber() < 0.9 then
+		if x == ARCADE_X and row == 1 then
+			-- место под игровой зал ARCADE (строит Arcade.server.lua)
+			workspace:SetAttribute("ArcadeSpot", Vector3.new(x, GROUND + 0.8, z))
+		elseif rng:NextNumber() < 0.9 then
 			local h = row == 1 and rng:NextInteger(35, 70) or rng:NextInteger(60, 140)
 			local label = row == 1 and SIGNS[(si - 1) % #SIGNS + 1] or nil
 			if label then si += 1 end
