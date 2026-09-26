@@ -73,22 +73,23 @@ end
 
 --=========================================================================
 -- Набережная: плитка, парапет, фонари, скамейки
+-- Плитка на 1 выше газона, иначе они мерцают на одном уровне.
 --=========================================================================
 local X1, X2 = -150, 1350
-part({ Size = Vector3.new(X2 - X1, 3, 18), Position = Vector3.new((X1 + X2) / 2, GROUND + 0.5, SHORE_Z), Color = Color3.fromRGB(190, 180, 165), Material = Enum.Material.Pavement })
+part({ Size = Vector3.new(X2 - X1, 3, 18), Position = Vector3.new((X1 + X2) / 2, GROUND + 1.5, SHORE_Z), Color = Color3.fromRGB(190, 180, 165), Material = Enum.Material.Pavement })
 part({ Size = Vector3.new(X2 - X1, 10, 3), Position = Vector3.new((X1 + X2) / 2, GROUND - 4, SHORE_Z - 10), Color = Color3.fromRGB(120, 115, 110), Material = Enum.Material.Cobblestone })
-part({ Size = Vector3.new(X2 - X1, 0.6, 0.6), Position = Vector3.new((X1 + X2) / 2, GROUND + 5, SHORE_Z - 8.5), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
+part({ Size = Vector3.new(X2 - X1, 0.6, 0.6), Position = Vector3.new((X1 + X2) / 2, GROUND + 6, SHORE_Z - 8.5), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
 for x = X1, X2, 6 do
-	part({ Size = Vector3.new(0.4, 3, 0.4), Position = Vector3.new(x, GROUND + 3.5, SHORE_Z - 8.5), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
+	part({ Size = Vector3.new(0.4, 3, 0.4), Position = Vector3.new(x, GROUND + 4.5, SHORE_Z - 8.5), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
 end
 for x = X1 + 20, X2 - 20, 40 do
-	part({ Size = Vector3.new(0.6, 13, 0.6), Position = Vector3.new(x, GROUND + 8.5, SHORE_Z - 6.5), Color = Color3.fromRGB(30, 30, 40), Material = Enum.Material.Metal })
-	local lamp = part({ Shape = Enum.PartType.Ball, Size = Vector3.new(2.2, 2.2, 2.2), Position = Vector3.new(x, GROUND + 15.5, SHORE_Z - 6.5), Color = Color3.fromRGB(255, 220, 150), Material = Enum.Material.Neon })
+	part({ Size = Vector3.new(0.6, 13, 0.6), Position = Vector3.new(x, GROUND + 9.5, SHORE_Z - 6.5), Color = Color3.fromRGB(30, 30, 40), Material = Enum.Material.Metal })
+	local lamp = part({ Shape = Enum.PartType.Ball, Size = Vector3.new(2.2, 2.2, 2.2), Position = Vector3.new(x, GROUND + 16.5, SHORE_Z - 6.5), Color = Color3.fromRGB(255, 220, 150), Material = Enum.Material.Neon })
 	local l = Instance.new("PointLight") l.Range = 28 l.Brightness = 1.6 l.Color = lamp.Color l.Parent = lamp
 	-- скамейка между фонарями
 	local bx = x + 20
-	part({ Size = Vector3.new(6, 0.5, 2), Position = Vector3.new(bx, GROUND + 3.2, SHORE_Z + 6), Color = Color3.fromRGB(120, 75, 40), Material = Enum.Material.Wood })
-	part({ Size = Vector3.new(6, 2, 0.4), Position = Vector3.new(bx, GROUND + 4.4, SHORE_Z + 7), Color = Color3.fromRGB(120, 75, 40), Material = Enum.Material.Wood })
+	part({ Size = Vector3.new(6, 0.5, 2), Position = Vector3.new(bx, GROUND + 4.2, SHORE_Z + 6), Color = Color3.fromRGB(120, 75, 40), Material = Enum.Material.Wood })
+	part({ Size = Vector3.new(6, 2, 0.4), Position = Vector3.new(bx, GROUND + 5.4, SHORE_Z + 7), Color = Color3.fromRGB(120, 75, 40), Material = Enum.Material.Wood })
 end
 
 -- звук: разговоры людей и чайки вдоль набережной
@@ -121,7 +122,7 @@ local function walker(z, x1, x2, speed)
 	for _, d in ipairs(npc:GetDescendants()) do if d:IsA("BasePart") then d.CanCollide = false end end
 	local root = npc.HumanoidRootPart
 	root.Anchored = true
-	local y = GROUND + 2 + npc.Humanoid.HipHeight + root.Size.Y / 2
+	local y = GROUND + 3 + npc.Humanoid.HipHeight + root.Size.Y / 2
 	local a, b = Vector3.new(x1, y, z), Vector3.new(x2, y, z)
 	npc:PivotTo(CFrame.new(a))
 	npc.Parent = sea
@@ -250,8 +251,8 @@ prompt.HoldDuration = 0
 prompt.MaxActivationDistance = 10
 prompt.Parent = rack
 prompt.Triggered:Connect(function(player)
-	player:SetAttribute("Parachute", false)
-	player:SetAttribute("Parachute", true)   -- Parachute.client.lua раскроет его в прыжке
+	-- каждый раз новое число, чтобы клиент заметил и повторное взятие
+	player:SetAttribute("Parachute", (player:GetAttribute("Parachute") or 0) + 1)
 end)
 
 print("[Море] Набережная, лайнер, яхты и башня готовы")

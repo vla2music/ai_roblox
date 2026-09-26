@@ -38,6 +38,23 @@ terrain:FillBlock(
 -- Горы
 --=========================================================================
 
+-- Зона города: горы не должны залезать на клубы, дома, дороги и аттракционы.
+-- Гора — шар, у земли её радиус ≈ 0.95·r; отодвигаем её от центра, пока не влезет.
+local CITY = { x1 = -200, x2 = 1460, z1 = -110, z2 = 400 }
+local function distToCity(p)
+	local dx = math.max(CITY.x1 - p.X, 0, p.X - CITY.x2)
+	local dz = math.max(CITY.z1 - p.Z, 0, p.Z - CITY.z2)
+	return math.sqrt(dx * dx + dz * dz)
+end
+
+local function mountain(pos, radius)
+	terrain:FillBall(pos, radius, Enum.Material.Rock)
+	-- зелёные склоны внизу
+	terrain:FillBall(pos + Vector3.new(0, -radius * 0.25, 0), radius * 0.95, Enum.Material.Grass)
+	-- снежная шапка
+	terrain:FillBall(pos + Vector3.new(0, radius * 0.72, 0), radius * 0.4, Enum.Material.Snow)
+end
+
 local mountains = {}
 local COUNT = 36
 for i = 1, COUNT do
@@ -49,14 +66,24 @@ for i = 1, COUNT do
 		-radius * 0.35,
 		math.sin(angle) * (MOUNTAIN_RZ + rng:NextNumber(-30, 60))
 	)
-	terrain:FillBall(pos, radius, Enum.Material.Rock)
-	-- зелёные склоны внизу
-	terrain:FillBall(pos + Vector3.new(0, -radius * 0.25, 0), radius * 0.95, Enum.Material.Grass)
-	-- снежная шапка
-	local top = pos + Vector3.new(0, radius * 0.72, 0)
-	terrain:FillBall(top, radius * 0.4, Enum.Material.Snow)
+	local out = Vector3.new(math.cos(angle), 0, math.sin(angle))
+	while distToCity(pos) < radius + 15 do pos += out * 10 end
+	mountain(pos, radius)
 	table.insert(mountains, { pos = pos, radius = radius, angle = angle })
 	if i % 6 == 0 then task.wait() end   -- не подвешиваем сервер
+end
+
+--=========================================================================
+-- Тоннели: на обоих концах трассы (z = 140) гора, дорога уходит в неё.
+-- Портал и асфальт внутри строит City.server.lua.
+--=========================================================================
+local ROAD_Z, RY = 140, GROUND + 2
+for _, e in ipairs({ { -160, -1 }, { 1420, 1 } }) do
+	local x, dir = e[1], e[2]
+	mountain(Vector3.new(x + dir * 140, -20, ROAD_Z), 150)
+	-- прорубаем проход: чуть шире дороги с тротуарами
+	terrain:FillBlock(CFrame.new(x + dir * 50, RY + 9.5, ROAD_Z), Vector3.new(140, 19, 40), Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(x + dir * 50, RY - 1, ROAD_Z), Vector3.new(140, 2, 40), Enum.Material.Rock)
 end
 
 --=========================================================================

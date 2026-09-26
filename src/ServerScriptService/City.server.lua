@@ -531,6 +531,19 @@ end
 -- Улицы киберквартала: две поперечные (x=290 и x=955) от трассы вглубь
 -- и три продольные между рядами домов. С разметкой, тротуарами, фонарями.
 local STREET_W = 14
+local STREETS = { { 290, 153, 290, 355 }, { 955, 153, 955, 355 } }
+for _, z in ipairs({ 175, 235, 295, 355 }) do table.insert(STREETS, { 290, z, 955, z }) end
+-- фонарь нельзя ставить на проезжую часть (перекрёстки, трасса)
+local function onRoad(p)
+	if math.abs(p.Z - ROAD_Z) < ROAD_W / 2 + 1 then return true end
+	for _, s in ipairs(STREETS) do
+		if p.X > math.min(s[1], s[3]) - STREET_W / 2 - 1 and p.X < math.max(s[1], s[3]) + STREET_W / 2 + 1
+			and p.Z > math.min(s[2], s[4]) - STREET_W / 2 - 1 and p.Z < math.max(s[2], s[4]) + STREET_W / 2 + 1 then
+			return true
+		end
+	end
+	return false
+end
 local function street(x1, z1, x2, z2)
 	local horizontal = z1 == z2
 	local len = horizontal and math.abs(x2 - x1) or math.abs(z2 - z1)
@@ -549,15 +562,14 @@ local function street(x1, z1, x2, z2)
 		part({ Size = sw, Position = c + (horizontal and Vector3.new(0, 0.2, off) or Vector3.new(off, 0.2, 0)), Color = Color3.fromRGB(150, 150, 160), Material = Enum.Material.Concrete })
 		for d = -len / 2, len / 2, 40 do
 			local lp = c + (horizontal and Vector3.new(d, 0, off + side * 1.5) or Vector3.new(off + side * 1.5, 0, d))
+			if onRoad(lp) then continue end
 			part({ Size = Vector3.new(0.6, 12, 0.6), Position = lp + Vector3.new(0, 6, 0), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
 			local lamp = part({ Size = Vector3.new(1.8, 0.9, 1.8), Position = lp + Vector3.new(0, 12.3, 0), Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Neon })
 			local l = Instance.new("PointLight") l.Range = 22 l.Brightness = 1.2 l.Color = lamp.Color l.Parent = lamp
 		end
 	end
 end
-street(290, 153, 290, 355)
-street(955, 153, 955, 355)
-for _, z in ipairs({ 175, 235, 295, 355 }) do street(290, z, 955, z) end
+for _, s in ipairs(STREETS) do street(s[1], s[2], s[3], s[4]) end
 
 -- Пешеходы гуляют по тротуарам и в киберквартал
 local ANIM_WALK = "rbxassetid://507777826"
@@ -612,11 +624,13 @@ end
 -- Тоннели на обоих концах трассы: портал в скале, внутри темнота
 for _, e in ipairs({ { -160, -1 }, { 1420, 1 } }) do
 	local x, dir = e[1], e[2]
-	local cx = x + dir * 12
-	local rock = Color3.fromRGB(90, 85, 95)
-	part({ Size = Vector3.new(24, 30, 60), Position = Vector3.new(cx + dir * 4, RY + 15, ROAD_Z), Color = rock, Material = Enum.Material.Rock })
-	-- тёмная «глубина» внутри скалы
-	part({ Size = Vector3.new(26, 18, ROAD_W + 8), Position = Vector3.new(cx - dir * 1, RY + 9, ROAD_Z), Color = Color3.new(0, 0, 0), Material = Enum.Material.SmoothPlastic, CanCollide = false })
+	-- гора с прорубленным тоннелем — World.server.lua; дорога уходит внутрь,
+	-- в глубине темнота и стена
+	part({ Size = Vector3.new(90, 1, ROAD_W), Position = Vector3.new(x + dir * 45, RY, ROAD_Z), Color = Color3.fromRGB(38, 38, 44), Material = Enum.Material.Asphalt })
+	part({ Size = Vector3.new(2, 20, ROAD_W + 8), Position = Vector3.new(x + dir * 90, RY + 10, ROAD_Z), Color = Color3.new(0, 0, 0), Material = Enum.Material.SmoothPlastic })
+	for k = 1, 4 do   -- лампы на потолке тоннеля
+		part({ Size = Vector3.new(3, 0.4, 1), Position = Vector3.new(x + dir * k * 18, RY + 17.5, ROAD_Z), Color = Color3.fromRGB(255, 190, 90), Material = Enum.Material.Neon, CanCollide = false })
+	end
 	-- бетонная арка-портал
 	part({ Size = Vector3.new(2, 4, ROAD_W + 10), Position = Vector3.new(x, RY + 19, ROAD_Z), Color = Color3.fromRGB(160, 160, 170), Material = Enum.Material.Concrete })
 	for _, side in ipairs({ -1, 1 }) do
