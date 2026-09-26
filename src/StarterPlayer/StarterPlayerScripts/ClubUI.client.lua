@@ -248,7 +248,7 @@ rbPad.PaddingBottom = UDim.new(0, 6)
 
 local confirming = false
 local function rebirthText()
-	local nextBoost = rebirths.Value + 2
+	local nextBoost = 1 + 0.5 * (rebirths.Value + 1)
 	if confirming then
 		return isRu and ("Точно? Клуб и монеты сбросятся. Жми ещё раз!") or "Sure? Club & coins reset. Click again!"
 	end
