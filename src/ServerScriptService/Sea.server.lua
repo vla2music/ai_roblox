@@ -65,9 +65,9 @@ local moon = part({ Name = "Луна", Shape = Enum.PartType.Ball, Size = Vector
 local moonLight = Instance.new("PointLight") moonLight.Range = 60 moonLight.Color = moon.Color moonLight.Parent = moon
 for k = 0, 14 do   -- мерцающая дорожка от горизонта к берегу
 	local z = SHORE_Z - 60 - k * 85
-	local w = 14 + k * 4
-	local strip = part({ Size = Vector3.new(w, 0.1, 40), Position = Vector3.new(600 + rng:NextNumber(-6, 6), GROUND - 0.15, z),
-		Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon, Transparency = 0.55 + k * 0.02, CanCollide = false, CastShadow = false })
+	local w = 6 + k * 2
+	local strip = part({ Size = Vector3.new(w, 0.1, 18), Position = Vector3.new(600 + rng:NextNumber(-6, 6), GROUND - 0.15, z),
+		Color = Color3.fromRGB(255, 245, 200), Material = Enum.Material.Neon, Transparency = 0.8 + k * 0.01, CanCollide = false, CastShadow = false })
 	strip:SetAttribute("MoonGlint", true)
 end
 
@@ -181,7 +181,7 @@ local function place(name, cf, windowColors, glow)
 	table.insert(floaters, { model = m, base = cf, phase = rng:NextNumber(0, 6) })
 end
 local WATER_Y = GROUND - 9   -- корпус наполовину в воде
-place("cruise", CFrame.new(650, WATER_Y, -520) * CFrame.Angles(0, math.rad(8), 0), { Color3.fromRGB(255, 230, 150), Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 220, 255) }, Color3.fromRGB(255, 230, 170))
+place("cruise", CFrame.new(650, WATER_Y - 12, -520) * CFrame.Angles(0, math.rad(8), 0), { Color3.fromRGB(255, 230, 150), Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 220, 255) }, Color3.fromRGB(255, 230, 170))
 place("yacht", CFrame.new(150, WATER_Y, -260) * CFrame.Angles(0, math.rad(-20), 0), { Color3.fromRGB(80, 220, 255) }, Color3.fromRGB(80, 200, 255))
 place("yacht", CFrame.new(1100, WATER_Y, -300) * CFrame.Angles(0, math.rad(160), 0), { Color3.fromRGB(255, 80, 200) }, Color3.fromRGB(255, 90, 200))
 
