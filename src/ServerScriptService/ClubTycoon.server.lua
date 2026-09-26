@@ -947,7 +947,7 @@ function builders.model(item, origin, model)
 end
 
 -- Стены всего клуба + закрытые двери «на будущее» + граффити
-function builders.outer(item, origin, model, lang)
+function builders.outer(item, origin, model, lang, plot)
 	local H = CONFIG.WALL_HEIGHT
 	local doors = {
 		{ "S", 0, 10 },     -- вход
@@ -973,6 +973,43 @@ function builders.outer(item, origin, model, lang)
 		lockedDoor(60, z, false, T(lang, "soon"), Color3.fromRGB(70, 60, 80))
 	end
 
+	-- Входная дверь: стеклянная, раздвижная. Открыть/закрыть может только
+	-- хозяин клуба — чтобы чужие игроки не забегали. Сначала открыта.
+	local isRu = lang == "ru"
+	local closedCF = at(origin, 0, H / 2, 35)
+	local openCF = closedCF * CFrame.new(10 * S, 0, 0.8)   -- уезжает за стену
+	local door = box(model, origin, Vector3.new(10 * S, H, 0.5), 0, H / 2, 35, Color3.fromRGB(120, 200, 255), Enum.Material.Glass,
+		{ Name = "ВходнаяДверь", Transparency = 0.45, CFrame = openCF, CanCollide = false })
+	local signs = { addSign(door, Enum.NormalId.Back, "", Color3.fromRGB(255, 90, 90)), addSign(door, Enum.NormalId.Front, "", Color3.fromRGB(255, 90, 90)) }
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ObjectText = isRu and "🚪 Дверь клуба" or "🚪 Club door"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = box(model, origin, Vector3.new(1, 1, 1), 0, 5, 35, Color3.new(), nil, { Transparency = 1, CanCollide = false })
+	local closed = false
+	local function apply()
+		TweenService:Create(door, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { CFrame = closed and closedCF or openCF }):Play()
+		door.CanCollide = closed
+		for _, l in ipairs(signs) do l.Text = closed and (isRu and "🔒 ЗАКРЫТО" or "🔒 CLOSED") or "" end
+		prompt.ActionText = closed and (isRu and "Открыть" or "Open") or (isRu and "Закрыть" or "Close")
+	end
+	apply()
+	prompt.Triggered:Connect(function(player)
+		if player ~= plot.owner then
+			-- гость внутри закрытого клуба всегда может выйти
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if closed and root and origin:PointToObjectSpace(root.Position).Z < 35 * S then
+				player.Character:PivotTo(at(origin, 0, 3, 38))
+				return
+			end
+			player:SetAttribute("Toast", nil)
+			player:SetAttribute("Toast", isRu and "🔒 Дверь открывает только хозяин клуба" or "🔒 Only the club owner can use this door")
+			return
+		end
+		closed = not closed
+		apply()
+	end)
 end
 
 -- Граффити на стене (покупается за монеты)

@@ -450,6 +450,18 @@ player:GetAttributeChangedSignal("ChestBonus"):Connect(function()
 	player:SetAttribute("ChestBonus", nil)
 end)
 
+-- короткое сообщение от сервера (например, «дверь открывает только хозяин»)
+player:GetAttributeChangedSignal("Toast"):Connect(function()
+	local v = player:GetAttribute("Toast")
+	if not v then return end
+	local msg = text(screen, {
+		Size = UDim2.new(0, 560, 0, 50), Position = UDim2.new(0.5, 0, 0.3, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+		Text = v, TextColor3 = Color3.fromRGB(255, 200, 200),
+	})
+	task.delay(2.5, function() msg:Destroy() end)
+	player:SetAttribute("Toast", nil)
+end)
+
 -- сундук на крыше/палубе уже открыт: подождать
 player:GetAttributeChangedSignal("ChestWait"):Connect(function()
 	local v = player:GetAttribute("ChestWait")
