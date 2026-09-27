@@ -144,7 +144,7 @@ local function timing()
 		local pressed = false
 		stop.MouseButton1Down:Connect(function() pressed = true end)
 		local conn = UserInputService.InputBegan:Connect(function(i, gp)
-			if not gp and i.KeyCode == Enum.KeyCode.Space then pressed = true end
+			if not gp and (i.KeyCode == Enum.KeyCode.Space or i.KeyCode == Enum.KeyCode.ButtonA) then pressed = true end
 		end)
 		while not pressed and running == "timing" do
 			local dt = RunService.RenderStepped:Wait()
@@ -174,7 +174,7 @@ local function stacker()
 	local btn = new("TextButton", area, { Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 5 })
 	btn.MouseButton1Down:Connect(function() pressed = true end)
 	local conn = UserInputService.InputBegan:Connect(function(i, gp)
-		if not gp and i.KeyCode == Enum.KeyCode.Space then pressed = true end
+		if not gp and (i.KeyCode == Enum.KeyCode.Space or i.KeyCode == Enum.KeyCode.ButtonA) then pressed = true end
 	end)
 	while running == "stacker" do
 		info.Text = L("🧱 Этаж: ", "🧱 Height: ") .. score .. L("   жми, когда блок над башней", "   tap when it's above the tower")
