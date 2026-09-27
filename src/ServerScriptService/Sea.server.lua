@@ -85,7 +85,9 @@ end
 for x = X1 + 20, X2 - 20, 40 do
 	part({ Size = Vector3.new(0.6, 13, 0.6), Position = Vector3.new(x, GROUND + 9.5, SHORE_Z - 6.5), Color = Color3.fromRGB(30, 30, 40), Material = Enum.Material.Metal })
 	local lamp = part({ Shape = Enum.PartType.Ball, Size = Vector3.new(2.2, 2.2, 2.2), Position = Vector3.new(x, GROUND + 16.5, SHORE_Z - 6.5), Color = Color3.fromRGB(255, 220, 150), Material = Enum.Material.Neon })
-	local l = Instance.new("PointLight") l.Range = 28 l.Brightness = 1.6 l.Color = lamp.Color l.Parent = lamp
+	if (x - X1 - 20) % 80 == 0 then   -- свет через фонарь — легче для телефонов
+		local l = Instance.new("PointLight") l.Range = 36 l.Brightness = 1.6 l.Color = lamp.Color l.Parent = lamp
+	end
 	-- скамейка между фонарями
 	local bx = x + 20
 	part({ Size = Vector3.new(6, 0.5, 2), Position = Vector3.new(bx, GROUND + 4.2, SHORE_Z + 6), Color = Color3.fromRGB(120, 75, 40), Material = Enum.Material.Wood })

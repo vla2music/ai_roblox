@@ -198,11 +198,14 @@ end
 for x = -100, 1300, 60 do
 	part({ Size = Vector3.new(0.8, 16, 0.8), Position = Vector3.new(x, GROUND + 8, PATH_Z + 13), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
 	local lamp = part({ Size = Vector3.new(2.4, 1.2, 2.4), Position = Vector3.new(x, GROUND + 16.4, PATH_Z + 13), Color = Color3.fromRGB(255, 230, 170), Material = Enum.Material.Neon })
-	local light = Instance.new("PointLight")
-	light.Range = 30
-	light.Brightness = 1.5
-	light.Color = Color3.fromRGB(255, 220, 170)
-	light.Parent = lamp
+	-- свет только у каждого второго фонаря (радиус больше) — легче для телефонов
+	if (x + 100) % 120 == 0 then
+		local light = Instance.new("PointLight")
+		light.Range = 40
+		light.Brightness = 1.5
+		light.Color = Color3.fromRGB(255, 220, 170)
+		light.Parent = lamp
+	end
 end
 
 --=========================================================================
@@ -497,10 +500,13 @@ for _, sz in ipairs({ ROAD_Z - ROAD_W / 2 - 3, ROAD_Z + ROAD_W / 2 + 3 }) do
 	part({ Size = Vector3.new(1600, 1.4, 6), Position = Vector3.new(630, RY + 0.2, sz), Color = Color3.fromRGB(150, 150, 160), Material = Enum.Material.Concrete })
 end
 for x = -140, 1400, 45 do
-	for _, sz in ipairs({ ROAD_Z - ROAD_W / 2 - 4.5, ROAD_Z + ROAD_W / 2 + 4.5 }) do
+	for si, sz in ipairs({ ROAD_Z - ROAD_W / 2 - 4.5, ROAD_Z + ROAD_W / 2 + 4.5 }) do
 		part({ Size = Vector3.new(0.7, 14, 0.7), Position = Vector3.new(x, RY + 7, sz), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
 		local lamp = part({ Size = Vector3.new(2, 1, 2), Position = Vector3.new(x, RY + 14.3, sz), Color = Color3.fromRGB(255, 225, 160), Material = Enum.Material.Neon })
-		local l = Instance.new("PointLight") l.Range = 26 l.Brightness = 1.3 l.Color = lamp.Color l.Parent = lamp
+		-- свет в шахматном порядке: через фонарь, по очереди с каждой стороны
+		if ((x + 140) / 45 + si) % 2 == 0 then
+			local l = Instance.new("PointLight") l.Range = 32 l.Brightness = 1.3 l.Color = lamp.Color l.Parent = lamp
+		end
 	end
 end
 -- у каждого клуба: парковка с P, зебра и киоск через дорогу
@@ -576,12 +582,16 @@ local function street(x1, z1, x2, z2)
 		local off = side * (STREET_W / 2 + 2.5)
 		local sw = horizontal and Vector3.new(len + STREET_W + 10, 1.4, 5) or Vector3.new(5, 1.4, len + STREET_W + 10)
 		part({ Size = sw, Position = c + (horizontal and Vector3.new(0, 0.2, off) or Vector3.new(off, 0.2, 0)), Color = Color3.fromRGB(150, 150, 160), Material = Enum.Material.Concrete })
+		local n = 0
 		for d = -len / 2, len / 2, 40 do
 			local lp = c + (horizontal and Vector3.new(d, 0, off + side * 1.5) or Vector3.new(off + side * 1.5, 0, d))
 			if onRoad(lp) then continue end
 			part({ Size = Vector3.new(0.6, 12, 0.6), Position = lp + Vector3.new(0, 6, 0), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal })
 			local lamp = part({ Size = Vector3.new(1.8, 0.9, 1.8), Position = lp + Vector3.new(0, 12.3, 0), Color = Color3.fromRGB(200, 160, 255), Material = Enum.Material.Neon })
-			local l = Instance.new("PointLight") l.Range = 22 l.Brightness = 1.2 l.Color = lamp.Color l.Parent = lamp
+			n += 1
+			if (n + (side > 0 and 1 or 0)) % 2 == 0 then   -- свет через фонарь
+				local l = Instance.new("PointLight") l.Range = 28 l.Brightness = 1.2 l.Color = lamp.Color l.Parent = lamp
+			end
 		end
 	end
 end
