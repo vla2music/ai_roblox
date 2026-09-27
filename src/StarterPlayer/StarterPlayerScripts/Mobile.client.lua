@@ -53,18 +53,33 @@ end)
 -- ===== Чувствительность камеры =====
 -- Стандартная камера Roblox поворачивается сама; мы добавляем к ней ещё поворот.
 -- Больше число — быстрее крутится (0 = как было).
-local EXTRA_DEG_PER_PX = 0.25
+local EXTRA_DEG_PER_PX = 0.45
 
 local pending = Vector2.zero
-local cameraTouches = {}
+local cameraTouches = {} -- касание -> прошлая позиция пальца
 
-UserInputService.TouchStarted:Connect(function(input, processed)
-	-- processed = палец на кнопке или джойстике: такие касания камеру не крутят
-	if not processed then cameraTouches[input] = true end
+-- Палец на кнопке интерфейса камеру не крутит
+local function overButton(pos)
+	for _, obj in playerGui:GetGuiObjectsAtPosition(pos.X, pos.Y) do
+		if obj:IsA("GuiButton") and obj.Visible then return true end
+	end
+	return false
+end
+
+UserInputService.TouchStarted:Connect(function(input)
+	local pos = Vector2.new(input.Position.X, input.Position.Y)
+	local vp = camera.ViewportSize
+	-- левая нижняя часть экрана — джойстик ходьбы
+	local joystick = pos.X < vp.X * 0.4 and pos.Y > vp.Y * 0.35
+	if not joystick and not overButton(pos) then cameraTouches[input] = pos end
 end)
 UserInputService.TouchEnded:Connect(function(input) cameraTouches[input] = nil end)
 UserInputService.TouchMoved:Connect(function(input)
-	if cameraTouches[input] then pending += Vector2.new(input.Delta.X, input.Delta.Y) end
+	local last = cameraTouches[input]
+	if not last then return end
+	local pos = Vector2.new(input.Position.X, input.Position.Y)
+	pending += pos - last
+	cameraTouches[input] = pos
 end)
 
 RunService:BindToRenderStep("MobileCameraBoost", Enum.RenderPriority.Camera.Value + 1, function()

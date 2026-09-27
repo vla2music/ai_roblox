@@ -463,8 +463,8 @@ local function addLabel(part, text, color, offsetY)
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.new(0, 220, 0, 60)
 	gui.StudsOffset = Vector3.new(0, offsetY or ((part.Size.Y / 2) + 2), 0)
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 90
+	gui.AlwaysOnTop = false   -- не просвечивать сквозь стены
+	gui.MaxDistance = 35      -- дальние надписи прячутся, чтобы не было каши
 	gui.Parent = part
 
 	local label = Instance.new("TextLabel")
