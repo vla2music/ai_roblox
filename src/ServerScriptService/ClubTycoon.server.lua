@@ -1563,13 +1563,6 @@ local function refreshButtons(plot)
 		plot.owner:SetAttribute("NextName", nextItem and itemName(nextItem, plot.lang) or "")
 		plot.owner:SetAttribute("NextCost", nextItem and nextItem.cost or 0)
 		plot.owner:SetAttribute("NextPos", nextItem and plot.buttons[nextItem.id].Position or nil)
-		-- клад в городе: хватает на следующую треть клуба
-		local sum, n, started = 0, 0, false
-		for _, item in ipairs(ITEMS) do
-			if item == nextItem then started = true end
-			if started and n < math.ceil(#ITEMS / 6) then sum += item.cost n += 1 end
-		end
-		plot.owner:SetAttribute("ChestValue", sum)   -- ≈ шестая часть клуба
 	end
 
 	if next_ then
@@ -2024,7 +2017,12 @@ local function onPlayerAdded(player)
 
 	local plot = findFreePlot()
 	if not plot then
+		-- участков 6: седьмой игрок без клуба ничего не может делать.
+		-- Размер сервера должен быть 6 (Game Settings → Places → Server Size);
+		-- это страховка, если сервер всё-таки пустил больше.
 		warn("[КлубТайкун] Свободных участков нет для", player.Name)
+		player:Kick(langOf(player) == "ru" and "Все 6 клубов на этом сервере заняты. Зайди ещё раз — попадёшь на другой сервер!"
+			or "All 6 clubs on this server are taken. Rejoin to get a new server!")
 		return
 	end
 
@@ -2106,6 +2104,14 @@ local function collectData(player)
 	}
 end
 
+-- Сохраняем только игрока, у которого клуб уже загружен и построен.
+-- Иначе (сохранение до загрузки, игрок без участка) в хранилище
+-- попал бы пустой клуб и затёр настоящий прогресс.
+local function savePlayer(player)
+	if not plotByPlayer[player] then return false end
+	return savePlayer(player)
+end
+
 -- Ребёрт: игрок «продаёт» готовый клуб и начинает заново с бонусом к доходу
 local rebirthEvent = Instance.new("RemoteEvent")
 rebirthEvent.Name = "ClubRebirth"
@@ -2126,7 +2132,7 @@ rebirthEvent.OnServerEvent:Connect(function(player)
 	player:SetAttribute("Floor1Done", false)
 	recalcIncome(plot)
 	refreshButtons(plot)
-	saveData(player.UserId, collectData(player))
+	savePlayer(player)
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -2240,7 +2246,10 @@ miniGame.OnServerInvoke = function(player, action, name, score)
 		if os.clock() - started < cfg.time - 3 then return nil end   -- слишком рано — не засчитываем
 		score = math.clamp(math.floor(tonumber(score) or 0), 0, cfg.maxScore)
 		if cfg.rate then score = math.min(score, math.floor((os.clock() - started) * cfg.rate)) end
-		local pool = math.max(plot.income * 60, (player:GetAttribute("NextCost") or 0) * 0.75, 50)
+		-- хорошая игра = минута дохода (в начале — 30% следующей покупки).
+		-- Игр 6, у каждой свой перерыв 5 мин: активная игра ≈ удваивает доход,
+		-- но не заменяет клуб (было 75% покупки — мини-игры обгоняли доход в 3 раза)
+		local pool = math.max(plot.income * 60, (player:GetAttribute("NextCost") or 0) * 0.3, 50)
 		local reward = math.floor(pool * score / cfg.good)
 		player.leaderstats[CONFIG.CURRENCY_NAME].Value += reward
 		player:SetAttribute(key, os.time() + MINIGAME_COOLDOWN)
@@ -2260,7 +2269,7 @@ MarketplaceService.ProcessReceipt = function(receipt)
 		if pack.id ~= 0 and pack.id == receipt.ProductId then
 			local amount = math.max(1000, math.floor(plot.income * 60 * pack.minutes))
 			player.leaderstats[CONFIG.CURRENCY_NAME].Value += amount
-			saveData(player.UserId, collectData(player))
+			savePlayer(player)
 			return Enum.ProductPurchaseDecision.PurchaseGranted
 		end
 	end
@@ -2268,7 +2277,7 @@ MarketplaceService.ProcessReceipt = function(receipt)
 end
 
 local function onPlayerRemoving(player)
-	saveData(player.UserId, collectData(player))
+	savePlayer(player)
 
 	local plot = plotByPlayer[player]
 	if plot then
@@ -2407,17 +2416,21 @@ task.spawn(function()
 	while true do
 		task.wait(CONFIG.AUTOSAVE_SEC)
 		for _, player in ipairs(Players:GetPlayers()) do
-			saveData(player.UserId, collectData(player))
+			savePlayer(player)
 		end
 	end
 end)
 
 -- сохраняем всех при выключении сервера
 game:BindToClose(function()
+	-- всех сразу, а не по очереди: на выключение у сервера ~30 секунд
+	local left = 0
 	for _, player in ipairs(Players:GetPlayers()) do
-		saveData(player.UserId, collectData(player))
+		left += 1
+		task.spawn(function() savePlayer(player) left -= 1 end)
 	end
-	task.wait(2)
+	local t0 = os.clock()
+	while left > 0 and os.clock() - t0 < 25 do task.wait(0.2) end
 end)
 
 -- фоновая музыка: треки играют по кругу

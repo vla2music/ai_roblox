@@ -10,6 +10,9 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local city = workspace:WaitForChild("Город", 60)
 if not city then return end
+-- сервер строит город ~30 сек: запоминаем детали, только когда он готов
+while not workspace:GetAttribute("CityReady") do task.wait(0.5) end
+task.wait(1)
 
 -- Колесо обозрения
 local wheel = city:WaitForChild("КолесоОбозрения", 30)
@@ -91,12 +94,20 @@ if wheel then
 		if p.Material == Enum.Material.Neon then table.insert(rimParts, p) end
 	end
 end
-for _, d in ipairs(city:GetDescendants()) do
+-- мигалки на крышах далёких домов приходят позже (мир грузится по частям)
+local function track(d)
 	if d:IsA("BasePart") then
 		if d:GetAttribute("Bulb") then table.insert(bulbs, d) end
 		if d:GetAttribute("Blink") then table.insert(blinks, d) end
 	end
 end
+for _, d in ipairs(city:GetDescendants()) do track(d) end
+city.DescendantAdded:Connect(track)
+city.DescendantRemoving:Connect(function(d)
+	local list = d:GetAttribute("Blink") and blinks or (d:GetAttribute("Bulb") and bulbs)
+	local i = list and table.find(list, d)
+	if i then table.remove(list, i) end
+end)
 task.spawn(function()
 	local step = 0
 	while true do

@@ -107,7 +107,7 @@ local HINTS = {
 	{ "ЛИФТ НА КРЫШУ — У КАЖДОГО ДОМА 🛗", "EVERY TOWER HAS A ROOF LIFT 🛗" },
 	{ "С КРЫШИ НА КРЫШУ? БЕРИ ПАРАШЮТ 🪂", "ROOF TO ROOF? GRAB A PARACHUTE 🪂" },
 	{ "НА ЯХТАХ ТОЖЕ ЕСТЬ СУНДУКИ 🛥️", "YACHTS HAVE CHESTS TOO 🛥️" },
-	{ "14 КОЛЕЦ БЕЗ ПРОПУСКА = БОНУС x10 💍", "ALL 14 RINGS = x10 BONUS 💍" },
+	{ "14 КОЛЕЦ БЕЗ ПРОПУСКА = СУПЕРБОНУС 💍", "ALL 14 RINGS = SUPER BONUS 💍" },
 	{ "ПОГЛАДЬ КОТА В КЛУБЕ 🐱", "PET THE CLUB CAT 🐱" },
 	{ "ТАЙНАЯ ДВЕРЬ «???» … СКОРО 🤫", "SECRET DOOR «???» … SOON 🤫" },
 	{ "СМОТРОВАЯ БАШНЯ: ПАРАШЮТ НАВЕРХУ 🗼", "VIEW TOWER: PARACHUTE ON TOP 🗼" },

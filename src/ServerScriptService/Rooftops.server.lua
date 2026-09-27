@@ -3,12 +3,13 @@
 	У каждого небоскрёба лифт (дверь внизу, со стороны клубов) — везёт на крышу.
 	На каждой крыше парашют: прыгай на соседние крыши.
 	На части крыш и на палубах яхт и лайнера — сундуки с монетами.
-	У каждого игрока на каждый сундук перерыв 10 минут.
+	У каждого игрока на каждый сундук перерыв 30 минут.
+	Награда — N минут дохода клуба (растёт вместе с клубом, не ломает баланс).
 ==========================================================================]]
 
 local Players = game:GetService("Players")
 
-local COOLDOWN = 600
+local COOLDOWN = 1800         -- 30 минут на каждый сундук
 local ROOF_CHESTS = 8          -- сколько крыш получат сундук
 
 while not (workspace:GetAttribute("CityReady") and workspace:GetAttribute("SeaReady")) do task.wait(0.5) end
@@ -40,12 +41,12 @@ local function prompt(parent, action, object)
 end
 
 --=========================================================================
--- Сундук: share — какая доля «цены сундука» игрока (ChestValue) внутри
+-- Сундук: minutes — сколько минут дохода клуба внутри
 --=========================================================================
 local WOOD, GOLD = Color3.fromRGB(110, 60, 30), Color3.fromRGB(255, 195, 50)
 local lastOpened = {}   -- [player][chest] = время
 
-local function chest(cf, parent, share)
+local function chest(cf, parent, minutes)
 	local m = Instance.new("Model")
 	m.Name = "Сундук"
 	local body = part({ Parent = m, Size = Vector3.new(4, 2.4, 2.8), CFrame = cf * CFrame.new(0, 1.2, 0), Color = WOOD, Material = Enum.Material.WoodPlanks })
@@ -71,7 +72,8 @@ local function chest(cf, parent, share)
 			return
 		end
 		lastOpened[player][m] = os.clock()
-		local amount = math.max(200, math.floor((player:GetAttribute("ChestValue") or 0) * share))
+		local income = player:FindFirstChild("Stats") and player.Stats.Income.Value or 0
+		local amount = math.floor(math.max(100, income * 60 * minutes))
 		player.leaderstats.Coins.Value += amount
 		player:SetAttribute("ChestBonus", nil)
 		player:SetAttribute("ChestBonus", amount)
@@ -120,7 +122,7 @@ end
 for i = 1, math.min(ROOF_CHESTS, #towers) do
 	local t = table.remove(towers, rng:NextInteger(1, #towers))
 	local roof = t.Position + Vector3.new(rng:NextNumber(-5, 5), t.Size.Y / 2, rng:NextNumber(-5, 5))
-	chest(CFrame.new(roof) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0), folder, 0.25)
+	chest(CFrame.new(roof) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0), folder, 2)
 end
 
 --=========================================================================
@@ -134,7 +136,7 @@ for _, m in ipairs(workspace:WaitForChild("Море"):GetChildren()) do
 		params.FilterDescendantsInstances = { m }
 		local hit = workspace:Raycast(cf.Position + Vector3.new(0, size.Y, 0), Vector3.new(0, -size.Y * 2, 0), params)
 		if hit then
-			chest(CFrame.new(hit.Position) * cf.Rotation, m, m:GetAttribute("Ship") == "cruise" and 0.6 or 0.4)
+			chest(CFrame.new(hit.Position) * cf.Rotation, m, m:GetAttribute("Ship") == "cruise" and 6 or 4)
 		end
 	end
 end

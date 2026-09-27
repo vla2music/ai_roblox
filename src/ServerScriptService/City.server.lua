@@ -37,7 +37,10 @@ local X1, X2 = -110, 1310
 local BELT_SPEED = 30
 local LANE = 10           -- ширина ленты
 local GAP = 12            -- расстояние между центрами лент
-local belts = Instance.new("Folder")
+-- Persistent: всё, что двигает Rides.client.lua, приходит игроку целиком
+-- сразу (иначе при загрузке мира по частям колесо, горки и лента ломаются)
+local belts = Instance.new("Model")
+belts.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 belts.Name = "Лента"
 belts.Parent = city
 
@@ -209,6 +212,7 @@ local WHEEL_POS = Vector3.new(170, GROUND + 52, 250)
 local WHEEL_R = 42
 
 local wheel = Instance.new("Model")
+wheel.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 wheel.Name = "КолесоОбозрения"
 wheel.Parent = city
 
@@ -253,6 +257,7 @@ end
 
 local COASTER_C = Vector3.new(1060, GROUND, 250)
 local coaster = Instance.new("Model")
+coaster.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 coaster.Name = "АмериканскиеГорки"
 coaster.Parent = city
 local track = Instance.new("Folder")
@@ -455,7 +460,9 @@ chest.Touched:Connect(function(hit)
 	if lastFound[player] and os.clock() - lastFound[player] < 600 then return end
 	busy = true
 	lastFound[player] = os.clock()
-	local amount = math.max(500, math.floor(player:GetAttribute("ChestValue") or 0))   -- треть клуба
+	-- 5 минут дохода клуба, но не меньше половины следующей покупки
+	local income = player:FindFirstChild("Stats") and player.Stats.Income.Value or 0
+	local amount = math.floor(math.max(200, income * 300, (player:GetAttribute("NextCost") or 0) * 0.5))
 	player.leaderstats.Coins.Value += amount
 	player:SetAttribute("ChestBonus", nil)
 	player:SetAttribute("ChestBonus", amount)   -- экран покажет «+N»

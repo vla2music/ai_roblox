@@ -128,11 +128,19 @@ player:GetAttributeChangedSignal("GliderRun"):Connect(function()
 	highlight(rings(), 1)
 	hud.Text = L("🪂 Кольца: 0/", "🪂 Rings: 0/") .. (course:GetAttribute("Rings") or 14)
 	hud.Visible, tip.Visible = true, true
+	local wait = player:GetAttribute("GliderWait") or 0
+	tip.Text = wait > 0
+		and L("Полёт без награды: монеты через " .. wait .. " мин", "Practice flight: coins again in " .. wait .. " min")
+		or L("Рули влево-вправо · прыжок = вверх", "Steer left/right · jump = go up")
 end)
 
 remote.OnClientEvent:Connect(function(index, amount, count, earned)
 	if not flying then return end
 	flying.count, flying.earned = count, earned
+	if amount == 0 then   -- полёт без награды: считаем только кольца
+		hud.Text = L("🪂 Кольца: ", "🪂 Rings: ") .. count .. "/" .. (course:GetAttribute("Rings") or 14)
+		return
+	end
 	hud.Text = L("🪂 Кольца: ", "🪂 Rings: ") .. count .. "/" .. (course:GetAttribute("Rings") or 14) .. "   +" .. short(earned)
 	if index >= (course:GetAttribute("Rings") or 14) then
 		hud.Text = L("🏆 ВСЯ ТРАССА! +", "🏆 FULL COURSE! +") .. short(earned)

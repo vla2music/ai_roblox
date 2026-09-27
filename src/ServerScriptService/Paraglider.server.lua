@@ -12,6 +12,7 @@ local RINGS    = 14
 local STEP     = 70     -- расстояние между кольцами
 local DROP     = 7      -- на сколько ниже каждое следующее
 local RING_R   = 12     -- радиус кольца
+local COOLDOWN = 300    -- монеты за трассу — раз в 5 минут (летать можно всегда)
 
 while not workspace:GetAttribute("CityReady") do task.wait(0.5) end
 
@@ -19,7 +20,9 @@ local remote = Instance.new("RemoteEvent")
 remote.Name = "GliderRing"
 remote.Parent = ReplicatedStorage
 
-local folder = Instance.new("Folder")
+-- Model + Persistent: кольца нужны игроку все сразу, даже далёкие
+local folder = Instance.new("Model")
+folder.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 folder.Name = "Параплан"
 folder.Parent = workspace
 
@@ -90,7 +93,8 @@ local bg = Instance.new("BillboardGui") bg.Size = UDim2.new(0, 260, 0, 44) bg.Ma
 local bl = Instance.new("TextLabel") bl.Size = UDim2.fromScale(1, 1) bl.BackgroundTransparency = 1 bl.Font = Enum.Font.GothamBlack
 bl.TextScaled = true bl.Text = "🪂 PARAGLIDER" bl.TextColor3 = Color3.fromRGB(60, 255, 140) bl.TextStrokeTransparency = 0.4 bl.Parent = bg
 
-local runs = {}   -- [player] = { next = номер кольца, count = сколько пройдено }
+local runs = {}   -- [player] = { next = номер кольца, count = сколько пройдено, paid = платим ли }
+local lastPaid = {}   -- [player] = когда начался последний полёт с наградой
 
 local pr = Instance.new("ProximityPrompt")
 pr.ActionText = "Fly!"
@@ -102,7 +106,11 @@ pr.Parent = pad
 local function startRun(player)
 	local char = player.Character
 	if not char then return end
-	runs[player] = { next = 1, count = 0, earned = 0 }
+	local wait = lastPaid[player] and COOLDOWN - (os.clock() - lastPaid[player]) or 0
+	local paid = wait <= 0
+	if paid then lastPaid[player] = os.clock() end
+	runs[player] = { next = 1, count = 0, earned = 0, paid = paid }
+	player:SetAttribute("GliderWait", paid and 0 or math.ceil(wait / 60))   -- клиент покажет «награда через N мин»
 	char:PivotTo(CFrame.lookAt(launch, launch + Vector3.new(0, 0, -1)))
 	player:SetAttribute("GliderRun", (player:GetAttribute("GliderRun") or 0) + 1)   -- клиент начнёт полёт
 end
@@ -113,9 +121,11 @@ dev.Name = "DevStartGlider"
 dev.Event:Connect(startRun)
 dev.Parent = game:GetService("ServerStorage")
 
--- награда за кольцо: чем больше колец подряд — тем дороже каждое
+-- награда за кольцо = 4 секунды дохода клуба, каждое следующее на 10% дороже;
+-- вся трасса ≈ 1.6 мин дохода + бонус 1 мин (base * 15)
 local function base(player)
-	return math.max(25, math.floor((player:GetAttribute("ChestValue") or 0) * 0.02))
+	local income = player:FindFirstChild("Stats") and player.Stats.Income.Value or 0
+	return math.max(5, income * 4)
 end
 
 remote.OnServerEvent:Connect(function(player, index)
@@ -126,13 +136,14 @@ remote.OnServerEvent:Connect(function(player, index)
 	if not root or (root.Position - points[index].pos).Magnitude > RING_R + 20 then return end
 	run.next = index + 1
 	run.count += 1
-	local amount = math.floor(base(player) * (1 + 0.25 * run.count))
-	if run.count == RINGS then amount += base(player) * 10 end   -- вся трасса без пропусков
+	local amount = math.floor(base(player) * (1 + 0.1 * run.count))
+	if run.count == RINGS then amount += math.floor(base(player) * 15) end   -- вся трасса без пропусков
+	if not run.paid then amount = 0 end
 	run.earned += amount
 	player.leaderstats.Coins.Value += amount
 	remote:FireClient(player, index, amount, run.count, run.earned)
 	if index == RINGS then runs[player] = nil end
 end)
-Players.PlayerRemoving:Connect(function(p) runs[p] = nil end)
+Players.PlayerRemoving:Connect(function(p) runs[p] = nil lastPaid[p] = nil end)
 
 print("[Параплан] Трасса из", RINGS, "колец готова на высоте", math.floor(roofY))
