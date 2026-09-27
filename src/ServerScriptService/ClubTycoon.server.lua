@@ -2018,7 +2018,7 @@ local function onPlayerAdded(player)
 	local plot = findFreePlot()
 	if not plot then
 		-- участков 6: седьмой игрок без клуба ничего не может делать.
-		-- Размер сервера должен быть 6 (File → Experience Settings → Places → Server Size);
+		-- Размер сервера должен быть 6 (Creator Hub → Places → Server Size);
 		-- это страховка, если сервер всё-таки пустил больше.
 		warn("[КлубТайкун] Свободных участков нет для", player.Name)
 		player:Kick(langOf(player) == "ru" and "Все 6 клубов на этом сервере заняты. Зайди ещё раз — попадёшь на другой сервер!"

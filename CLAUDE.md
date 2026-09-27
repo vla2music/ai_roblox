@@ -38,7 +38,7 @@
 - Rojo меняет только открытую копию в Studio. Друзья видят ОПУБЛИКОВАННУЮ версию → после правок File → Publish to Roblox.
 - Проверка «как у другого игрока»: Test → Clients and Servers (Local Server, 2 игрока).
 - StreamingEnabled = true: мир приходит игроку по частям. Всё, что клиент двигает/ищет (колесо, горки, лента, кольца) — Model с ModelStreamingMode = Persistent.
-- Размер сервера должен быть 6 (участков 6): File → Experience Settings → Places. В Studio это НЕ «Game Settings». Сохранять только через `savePlayer` (не сохраняет игрока без загруженного клуба).
+- Размер сервера должен быть 6 (участков 6): File → Experience Settings → «Manage on Creator Hub» → Places → место → Server Size (в Studio разделов Places/доступа НЕТ; и это НЕ «Game Settings»). Сохранять только через `savePlayer` (не сохраняет игрока без загруженного клуба).
 
 ## ID
 - Геймпассы: Auto Collect 1998614421, x2 Cash 1998626423, Speed Boost 1998992427, Robo Drone 1998884429.
