@@ -239,52 +239,88 @@ end
 
 local store = DataStoreService:GetDataStore(CONFIG.DATASTORE_NAME)
 
+-- «Замок» на сохранении: пока игрок на сервере А, в его записи лежит
+-- lock = { job = JobId сервера, t = время }. Если игрок быстро перешёл на
+-- сервер Б, тот ждёт, пока А сохранит и снимет замок, — иначе Б загрузил бы
+-- старый прогресс и потом затёр им новый. Замок старше LOCK_TTL считается
+-- брошенным (сервер упал). Автосохранение раз в минуту обновляет время замка.
+local LOCK_TTL = 120
+
+local function parseData(result)
+	return {
+		money = tonumber(result.money) or CONFIG.START_MONEY,
+		owned = (function(owned)
+			owned = type(owned) == "table" and owned or {}
+			for _, item in ipairs(ITEMS) do
+				local g = item.id:match("^(.-)_%d+$")
+				if g and owned[g] then owned[item.id] = true end
+				if item.kind == "rack" and owned.server then owned[item.id] = true end
+			end
+			return owned
+		end)(result.owned),
+		rebirths = tonumber(result.rebirths) or 0,
+		pcTier = tonumber(result.pcTier) or 1,
+		playTime = tonumber(result.playTime) or 0,
+		totalEarned = tonumber(result.totalEarned) or 0,
+		dailyLast = tonumber(result.dailyLast) or 0,
+		dailyStreak = tonumber(result.dailyStreak) or 0,
+	}
+end
+
 local function loadData(userId)
-	local ok, result = pcall(function()
-		return store:GetAsync("p_" .. userId)
-	end)
-	if ok and type(result) == "table" then
-		return {
-			money = tonumber(result.money) or CONFIG.START_MONEY,
-			owned = (function(owned)
-				owned = type(owned) == "table" and owned or {}
-				for _, item in ipairs(ITEMS) do
-					local g = item.id:match("^(.-)_%d+$")
-					if g and owned[g] then owned[item.id] = true end
-					if item.kind == "rack" and owned.server then owned[item.id] = true end
+	local lastErr
+	for attempt = 1, 8 do
+		local force = attempt == 8   -- ждали ~20 сек — забираем замок себе
+		local locked, loaded = false, nil
+		local ok, err = pcall(function()
+			store:UpdateAsync("p_" .. userId, function(old)
+				old = type(old) == "table" and old or {}
+				local lock = old.lock
+				if not force and type(lock) == "table" and lock.job ~= game.JobId
+					and os.time() - (tonumber(lock.t) or 0) < LOCK_TTL then
+					locked = true
+					return nil   -- ничего не пишем, подождём
 				end
-				return owned
-			end)(result.owned),
-			rebirths = tonumber(result.rebirths) or 0,
-			pcTier = tonumber(result.pcTier) or 1,
-			playTime = tonumber(result.playTime) or 0,
-			totalEarned = tonumber(result.totalEarned) or 0,
-			dailyLast = tonumber(result.dailyLast) or 0,
-			dailyStreak = tonumber(result.dailyStreak) or 0,
-		}
+				old.lock = { job = game.JobId, t = os.time() }
+				loaded = old
+				return old
+			end)
+		end)
+		if ok and not locked then
+			return parseData(loaded or {})
+		end
+		lastErr = err or "прогресс ещё сохраняет другой сервер"
+		task.wait(attempt == 1 and 1 or 3)
 	end
-	if not ok then
-		warn("[КлубТайкун] Не удалось загрузить данные:", result)
-		-- loadFailed: сохранять такого игрока нельзя, иначе пустой клуб
-		-- затрёт настоящий прогресс в хранилище
-		return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0, pcTier = 1, dailyLast = 0, dailyStreak = 0, loadFailed = true }
-	end
-	return { money = CONFIG.START_MONEY, owned = {}, rebirths = 0, pcTier = 1, dailyLast = 0, dailyStreak = 0 }
+	warn("[КлубТайкун] Не удалось загрузить данные:", lastErr)
+	-- loadFailed: сохранять такого игрока нельзя, иначе пустой клуб
+	-- затрёт настоящий прогресс в хранилище
+	local data = parseData({})
+	data.loadFailed = true
+	return data
 end
 
 local noSave = {}   -- userId -> true, если сохранение не загрузилось
 
-local function saveData(userId, data)
+-- release = true при выходе игрока: снимаем замок
+local function saveData(userId, data, release)
 	if noSave[userId] then
 		warn("[КлубТайкун] Пропускаю сохранение: прогресс не был загружен", userId)
 		return false
 	end
 	local ok, err = pcall(function()
-		store:SetAsync("p_" .. userId, {
-			money = data.money, owned = data.owned, rebirths = data.rebirths,
-			pcTier = data.pcTier, dailyLast = data.dailyLast, dailyStreak = data.dailyStreak,
-			playTime = data.playTime, totalEarned = data.totalEarned,
-		})
+		store:UpdateAsync("p_" .. userId, function(old)
+			local lock = type(old) == "table" and old.lock
+			if type(lock) == "table" and lock.job ~= game.JobId then
+				return nil   -- игрока уже забрал другой сервер — его данные не трогаем
+			end
+			return {
+				money = data.money, owned = data.owned, rebirths = data.rebirths,
+				pcTier = data.pcTier, dailyLast = data.dailyLast, dailyStreak = data.dailyStreak,
+				playTime = data.playTime, totalEarned = data.totalEarned,
+				lock = (not release) and { job = game.JobId, t = os.time() } or nil,
+			}
+		end)
 	end)
 	if not ok then
 		warn("[КлубТайкун] Не удалось сохранить данные:", err)
@@ -2107,9 +2143,9 @@ end
 -- Сохраняем только игрока, у которого клуб уже загружен и построен.
 -- Иначе (сохранение до загрузки, игрок без участка) в хранилище
 -- попал бы пустой клуб и затёр настоящий прогресс.
-local function savePlayer(player)
+local function savePlayer(player, release)
 	if not plotByPlayer[player] then return false end
-	return savePlayer(player)
+	return saveData(player.UserId, collectData(player), release)
 end
 
 -- Ребёрт: игрок «продаёт» готовый клуб и начинает заново с бонусом к доходу
@@ -2277,7 +2313,7 @@ MarketplaceService.ProcessReceipt = function(receipt)
 end
 
 local function onPlayerRemoving(player)
-	savePlayer(player)
+	savePlayer(player, true)   -- true: снимаем «замок», игрока может взять другой сервер
 
 	local plot = plotByPlayer[player]
 	if plot then
@@ -2427,7 +2463,7 @@ game:BindToClose(function()
 	local left = 0
 	for _, player in ipairs(Players:GetPlayers()) do
 		left += 1
-		task.spawn(function() savePlayer(player) left -= 1 end)
+		task.spawn(function() savePlayer(player, true) left -= 1 end)
 	end
 	local t0 = os.clock()
 	while left > 0 and os.clock() - t0 < 25 do task.wait(0.2) end
