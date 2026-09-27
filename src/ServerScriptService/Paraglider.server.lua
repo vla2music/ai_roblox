@@ -7,6 +7,7 @@
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Analytics         = require(script.Parent:WaitForChild("Analytics"))
 
 local RINGS    = 14
 local STEP     = 70     -- расстояние между кольцами
@@ -113,6 +114,7 @@ local function startRun(player)
 	player:SetAttribute("GliderWait", paid and 0 or math.ceil(wait / 60))   -- клиент покажет «награда через N мин»
 	char:PivotTo(CFrame.lookAt(launch, launch + Vector3.new(0, 0, -1)))
 	player:SetAttribute("GliderRun", (player:GetAttribute("GliderRun") or 0) + 1)   -- клиент начнёт полёт
+	Analytics.event(player, "GliderStart")
 end
 pr.Triggered:Connect(startRun)
 -- для проверки из Studio: ServerStorage.DevStartGlider:Fire(player)
@@ -141,6 +143,11 @@ remote.OnServerEvent:Connect(function(player, index)
 	if not run.paid then amount = 0 end
 	run.earned += amount
 	player.leaderstats.Coins.Value += amount
+	Analytics.source(player, amount, "Glider")
+	if run.count == RINGS then
+		Analytics.event(player, "GliderFullCourse")
+		Analytics.badge(player, "glider")
+	end
 	remote:FireClient(player, index, amount, run.count, run.earned)
 	if index == RINGS then runs[player] = nil end
 end)

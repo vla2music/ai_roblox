@@ -7,6 +7,7 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players          = game:GetService("Players")
+local Analytics        = require(script.Parent:WaitForChild("Analytics"))
 
 local GROUND = -4          -- верх газона
 local rng = Random.new(777)
@@ -464,6 +465,9 @@ chest.Touched:Connect(function(hit)
 	local income = player:FindFirstChild("Stats") and player.Stats.Income.Value or 0
 	local amount = math.floor(math.max(200, income * 300, (player:GetAttribute("NextCost") or 0) * 0.5))
 	player.leaderstats.Coins.Value += amount
+	Analytics.source(player, amount, "Chest")
+	Analytics.event(player, "GoldChest")
+	Analytics.badge(player, "treasure")
 	player:SetAttribute("ChestBonus", nil)
 	player:SetAttribute("ChestBonus", amount)   -- экран покажет «+N»
 	setChestVisible(false)

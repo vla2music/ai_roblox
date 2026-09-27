@@ -54,4 +54,16 @@ Shared.LEMONADES = {
 	{ order = 3, key = "mega",  ru = "Мега-лимонад",    en = "Mega Lemonade",  energy = 100, seconds = 16, minPrice = 35, color = Color3.fromRGB(80, 220, 255) },
 }
 
+-- Значки (Creator Hub → игра → Engagement → Badges → Create), потом ID сюда.
+-- 0 = ещё не создан, значок не выдаётся (код уже готов).
+Shared.BADGES = {
+	welcome  = 0,   -- «Добро пожаловать в киберклуб» — первый вход
+	firstPC  = 0,   -- «Первый ПК»
+	halfClub = 0,   -- «Полклуба» — 30 покупок
+	floor1   = 0,   -- «Весь этаж построен»
+	rebirth  = 0,   -- «Первый ребёрт»
+	glider   = 0,   -- «Вся трасса параплана» — 14 колец
+	treasure = 0,   -- «Кладоискатель» — золотой сундук
+}
+
 return Shared

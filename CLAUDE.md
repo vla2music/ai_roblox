@@ -23,6 +23,8 @@
 - `Paraglider.server.lua` + `Paraglider.client.lua` — параплан с самого высокого дома, 14 колец, сервер проверяет кольца. Тест: `ServerStorage.DevStartGlider:Fire(player)`.
 - `Billboards.server.lua` + `NazarTok.client.lua` — экраны NazarTok (анимированные «ролики» с подсказками, не настоящее видео), рекламные баннеры, граффити с подсказками.
 - `Arcade.server.lua` + `Arcade.client.lua` — игровой зал ARCADE (2 этажа, место x=562 в первом ряду квартала оставляет City) и 2 автомата на лайнере. Игры: shoot, timing, stacker, hockey; награда через MiniGame (лимиты в MINIGAMES, `rate` — потолок очков в секунду).
+- `Analytics.lua` (модуль) — аналитика Roblox (онбординг-воронка, экономика раз в минуту, свои события), значки (`Shared.BADGES`, 0 = не создан), шаги обучения (атрибуты `NewPlayer`, `TutorialStep`; текст — ClubUI). Любую новую награду/трату логировать `Analytics.source/sink`.
+- `Favorite.client.lua` — просьба «в избранное» через 8 мин после покупки/сундука, раз за сессию.
 - Входная дверь клуба — в `builders.outer` (ClubTycoon): открывает только хозяин.
 - ⚠️ Имена атрибутов — только латиница; к объектам с русскими именами обращаться через `FindFirstChild("…")`, не через точку.
 - `ReplicatedStorage/ClubShared.lua` — геймпассы, пачки монет, уровни ПК, награды, лимонады.

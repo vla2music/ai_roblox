@@ -132,14 +132,51 @@ hint.Text = isRu
 	or "Build the #1 Cyber Club in town!\nPress E at the ATM, grab coins, follow the yellow arrow."
 hint.Parent = screen
 
-task.delay(14, function()
+local function fadeHint()
 	for i = 1, 20 do
 		hint.TextTransparency = i / 20
 		hint.TextStrokeTransparency = 0.5 + i / 40
 		task.wait(0.05)
 	end
-	hint:Destroy()
-end)
+	hint.Visible = false
+end
+
+-- Обучение новичка по шагам (сервер двигает атрибут TutorialStep, см. Analytics.lua).
+-- Первые 60 секунд решают, останется ли игрок, — поэтому одна крупная
+-- понятная цель за раз, а жёлтая стрелка показывает, куда идти.
+local TUTORIAL = {
+	[2] = { "👉 Иди за жёлтой стрелкой и встань на зелёную кнопку FREE — первая стойка бесплатно!", "👉 Follow the yellow arrow and step on the green FREE button!" },
+	[3] = { "💰 Банкомат выдаёт монеты — пробеги по ним! Жми E у банкомата, чтобы монет было больше", "💰 The ATM drops coins — run over them! Press E at the ATM for extra coins" },
+	[4] = { "🖥️ Теперь купи первый игровой ПК — стрелка покажет кнопку", "🖥️ Now buy your first gaming PC — follow the arrow" },
+	[5] = { "🎉 Отлично! Каждый ПК приносит деньги. Копи, покупай и строй клуб №1!", "🎉 Great! Every PC earns money. Keep buying and build the #1 club!" },
+}
+local function showTutorial()
+	local step = player:GetAttribute("TutorialStep")
+	local t = step and TUTORIAL[step]
+	if not t then return end
+	hint.Visible = true
+	hint.TextTransparency, hint.TextStrokeTransparency = 0, 0.5
+	hint.Size = UDim2.new(0, 640, 0, 70)
+	hint.Position = UDim2.new(0.5, -320, 0, 115)
+	hint.Font = Enum.Font.GothamBlack
+	hint.TextSize = 22
+	hint.TextWrapped = true
+	hint.TextColor3 = step == 5 and Color3.fromRGB(120, 255, 170) or Color3.fromRGB(255, 230, 90)
+	hint.Text = isRu and t[1] or t[2]
+	if step == 5 then task.delay(6, fadeHint) end
+end
+
+if player:GetAttribute("NewPlayer") then
+	showTutorial()
+	player:GetAttributeChangedSignal("TutorialStep"):Connect(showTutorial)
+else
+	task.delay(14, function()
+		local step = player:GetAttribute("TutorialStep") or 0
+		if step < 2 or step > 4 then fadeHint() end   -- идёт обучение — не прячем
+	end)
+	-- атрибут мог прийти чуть позже самого скрипта
+	player:GetAttributeChangedSignal("TutorialStep"):Connect(showTutorial)
+end
 
 --=========================================================================
 -- Финал этажа: клуб построен

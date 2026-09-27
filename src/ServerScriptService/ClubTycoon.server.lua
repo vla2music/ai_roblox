@@ -25,6 +25,7 @@ local MaterialService    = game:GetService("MaterialService")
 -- Если какой-то модели там нет, вместо неё строится простая из кубиков.
 local templates = ServerStorage:FindFirstChild("Шаблоны")
 local Shared = require(game:GetService("ReplicatedStorage"):WaitForChild("ClubShared"))
+local Analytics = require(script.Parent:WaitForChild("Analytics"))   -- аналитика, значки, обучение
 
 --=========================================================================
 -- 1. НАСТРОЙКИ
@@ -669,6 +670,7 @@ local function lemonadePrompt(host, kind, mult, plot)
 		if money.Value < cost then return end
 		if (player:GetAttribute("Energy") or 100) >= 100 then return end
 		money.Value -= cost
+		Analytics.sink(player, cost, "Lemonade")
 		player:SetAttribute("Energy", math.min(100, (player:GetAttribute("Energy") or 100) + kind.energy))
 		applySpeedRef(player)
 	end)
@@ -842,6 +844,7 @@ local function spawnCat(origin, model, plot)
 		last[player] = os.clock()
 		local bonus = math.max(10, plot.income * 10)
 		player.leaderstats[CONFIG.CURRENCY_NAME].Value += bonus
+		Analytics.source(player, bonus, "Chest")
 		player:SetAttribute("ChestBonus", nil)
 		player:SetAttribute("CatBonus", bonus)
 		local hearts = Instance.new("ParticleEmitter")
@@ -1684,6 +1687,7 @@ local function clearPlot(plot)
 		plot.built[id] = nil
 	end
 	plot.owned = {}
+	plot.clickedOnce = nil
 	plot.storage = 0
 	plot.income = 0
 	plot.multiplier = 1
@@ -1753,6 +1757,17 @@ local function tryBuy(player, plot, item)
 
 	money.Value -= item.cost
 	plot.owned[item.id] = true
+	-- аналитика: трата, номер покупки, шаги новичка, значки
+	Analytics.sink(player, item.cost, "ClubItem")
+	local count = 0
+	for _ in pairs(plot.owned) do count += 1 end
+	Analytics.event(player, "ClubPurchase", count)
+	if count >= 1 then Analytics.step(player, "FreeDesk") end
+	if count >= 2 then Analytics.step(player, "FirstPC") Analytics.badge(player, "firstPC") end
+	if count >= 5 then Analytics.step(player, "Purchase5") end
+	if item.id == "walls" then Analytics.step(player, "Walls") end
+	if count >= 15 then Analytics.step(player, "Purchase15") end
+	if count >= 30 then Analytics.step(player, "Purchase30") Analytics.badge(player, "halfClub") end
 
 	-- анимация нажатия: кнопка проседает, вспышка искр и звон монет
 	local button = plot.buttons[item.id]
@@ -1789,6 +1804,8 @@ local function tryBuy(player, plot, item)
 	-- последняя покупка этажа: клиент покажет праздничный экран
 	if item.id == ITEMS[#ITEMS].id then
 		player:SetAttribute("Floor1Done", true)
+		Analytics.step(player, "Floor1Done")
+		Analytics.badge(player, "floor1")
 	end
 end
 
@@ -1814,6 +1831,8 @@ local function pickUpCoin(plot, coin, player)
 
 	local value = coin:GetAttribute("Value") or 0
 	player.leaderstats[CONFIG.CURRENCY_NAME].Value += value
+	Analytics.source(player, value, "Income")
+	Analytics.step(player, "FirstCoin")
 	playSound(CONFIG.SOUND_COLLECT, plot.coinPad, 0.28)
 
 	-- монетка подпрыгивает и исчезает
@@ -1832,6 +1851,7 @@ local function dropCoin(plot, value)
 	-- геймпасс «Авто-сбор»: монеты сразу в кошелёк, бегать не надо
 	if plot.owner and plot.owner:GetAttribute("Pass_autocollect") == true then
 		plot.owner.leaderstats[CONFIG.CURRENCY_NAME].Value += value
+		Analytics.source(plot.owner, value, "Income")
 		return
 	end
 
@@ -1919,6 +1939,7 @@ local function connectPlotTouches(plot)
 		local now = os.clock()
 		if now - plot.lastClick < CONFIG.CLICK_COOLDOWN then return end
 		plot.lastClick = now
+		if not plot.clickedOnce then plot.clickedOnce = true Analytics.event(player, "ClickedATM") end
 
 		dropCoin(plot, math.max(1, plot.income * CONFIG.CLICK_BONUS))
 
@@ -2064,6 +2085,13 @@ local function onPlayerAdded(player)
 
 	plot.owner = player
 	plot.owned = {}
+	-- новичок: никогда не зарабатывал — считаем онбординг и показываем обучение
+	if (data.totalEarned or 0) == 0 and next(data.owned) == nil and (data.rebirths or 0) == 0 then
+		player:SetAttribute("NewPlayer", true)
+		player:SetAttribute("TutorialStep", 1)
+	end
+	Analytics.step(player, "Joined")
+	Analytics.badge(player, "welcome")
 	checkPasses(player)
 	plot.multiplier = hasPass(player, "doublecash") and 2 or 1
 	plot.rebirths = data.rebirths
@@ -2164,6 +2192,8 @@ rebirthEvent.OnServerEvent:Connect(function(player)
 	plot.rebirths = (plot.rebirths or 0) + 1
 
 	player.leaderstats.Rebirths.Value = plot.rebirths
+	Analytics.event(player, "Rebirth", plot.rebirths)
+	Analytics.badge(player, "rebirth")
 	player.leaderstats[CONFIG.CURRENCY_NAME].Value = CONFIG.START_MONEY
 	player:SetAttribute("Floor1Done", false)
 	recalcIncome(plot)
@@ -2213,6 +2243,8 @@ clubAction.OnServerInvoke = function(player, action)
 		local tier = Shared.PC_TIERS[nextTier]
 		if tier and money.Value >= tier.cost then
 			money.Value -= tier.cost
+			Analytics.sink(player, tier.cost, "PCUpgrade")
+			Analytics.event(player, "PCTier", nextTier)
 			plot.pcTier = nextTier
 			-- перестраиваем все купленные компы в новом виде
 			for _, item in ipairs(ITEMS) do
@@ -2236,6 +2268,7 @@ clubAction.OnServerInvoke = function(player, action)
 		local st = menuState(plot)
 		if st.dailyReadyIn == 0 then
 			money.Value += st.dailyAmount
+			Analytics.source(player, st.dailyAmount, "Daily")
 			plot.dailyStreak = (os.time() - (plot.dailyLast or 0) > Shared.DAILY_RESET) and 1 or (plot.dailyStreak or 0) + 1
 			plot.dailyLast = os.time()
 		end
@@ -2288,6 +2321,8 @@ miniGame.OnServerInvoke = function(player, action, name, score)
 		local pool = math.max(plot.income * 60, (player:GetAttribute("NextCost") or 0) * 0.3, 50)
 		local reward = math.floor(pool * score / cfg.good)
 		player.leaderstats[CONFIG.CURRENCY_NAME].Value += reward
+		Analytics.source(player, reward, "Minigame")
+		Analytics.event(player, "Minigame_" .. name, score)
 		player:SetAttribute(key, os.time() + MINIGAME_COOLDOWN)
 		return reward
 	end
@@ -2305,6 +2340,7 @@ MarketplaceService.ProcessReceipt = function(receipt)
 		if pack.id ~= 0 and pack.id == receipt.ProductId then
 			local amount = math.max(1000, math.floor(plot.income * 60 * pack.minutes))
 			player.leaderstats[CONFIG.CURRENCY_NAME].Value += amount
+			Analytics.source(player, amount, "RobuxPack")
 			savePlayer(player)
 			return Enum.ProductPurchaseDecision.PurchaseGranted
 		end

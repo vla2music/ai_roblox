@@ -8,6 +8,7 @@
 ==========================================================================]]
 
 local Players = game:GetService("Players")
+local Analytics = require(script.Parent:WaitForChild("Analytics"))
 
 local COOLDOWN = 1800         -- 30 минут на каждый сундук
 local ROOF_CHESTS = 8          -- сколько крыш получат сундук
@@ -75,6 +76,8 @@ local function chest(cf, parent, minutes)
 		local income = player:FindFirstChild("Stats") and player.Stats.Income.Value or 0
 		local amount = math.floor(math.max(100, income * 60 * minutes))
 		player.leaderstats.Coins.Value += amount
+		Analytics.source(player, amount, "Chest")
+		Analytics.event(player, "Chest_" .. (parent == folder and "Roof" or "Ship"))
 		player:SetAttribute("ChestBonus", nil)
 		player:SetAttribute("ChestBonus", amount)
 	end)
