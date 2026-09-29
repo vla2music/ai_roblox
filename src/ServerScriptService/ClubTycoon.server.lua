@@ -44,6 +44,8 @@ local CONFIG = {
 	-- План нарисован в «клетках» 120 x 70. Одна клетка = SCALE студов.
 	SCALE          = 1.5,
 	WALL_HEIGHT    = 14,
+	-- Пол 2 этажа: выше вывески NAZAR CLUB над сценой (она до 19 студов)
+	FLOOR2_HEIGHT  = 20.5,
 	PC_SCALE       = 0.75,   -- компьютеры из магазина немного уменьшены
 
 	-- Участок приподнят над базовой площадкой Roblox, чтобы пол не рябил.
@@ -90,6 +92,12 @@ local CONFIG = {
 }
 
 local S = CONFIG.SCALE
+local F2 = CONFIG.FLOOR2_HEIGHT
+
+-- Покупки 2 этажа (level=2) строятся от «поднятого» начала участка
+local function levelOrigin(origin, item)
+	return item.level == 2 and origin * CFrame.new(0, F2, 0) or origin
+end
 
 --=========================================================================
 -- 2. ЧТО МОЖНО ПОСТРОИТЬ
@@ -166,7 +174,25 @@ local ITEMS = {
 	  floor=Color3.fromRGB(90, 70, 20), btn={-36, -5} },
 	{ id="stage", name="Сцена NAZAR CLUB", en="NAZAR CLUB Stage", cost=180000, income=350, needs="vip",
 	  kind="stage", btn={-5, -21} },
+
+	-- ===== 2 ЭТАЖ: открывается после сцены. level=2 — строится на высоте 2 этажа =====
+	{ id="stairs", name="Лестница на 2 этаж", en="Stairs to Floor 2", kind="stairs", btn={-56, -1} },
+	{ id="floor2", name="Второй этаж", en="Second Floor", kind="floor2", level=2, btn={-63.2, -32.5} },
+	{ group="pro1", name="Про-ПК", en="Pro PC", kind="pcs", level=2, minTier=3,
+	  pcs={{-26,-24},{-18,-24},{-10,-24},{-2,-24},{6,-24}}, rot=0, btnDz=-4.5 },
+	{ id="bar", name="Кибер-бар", en="Cyber Bar", kind="bar", level=2, btn={-44, 17} },
+	{ group="pro2", name="Про-ПК", en="Pro PC", kind="pcs", level=2, minTier=3,
+	  pcs={{-26,-10},{-18,-10},{-10,-10},{-2,-10},{6,-10}}, rot=0, btnDz=-4.5 },
+	{ id="vr", name="VR-зона", en="VR Zone", kind="room", level=2,
+	  rect={-60, -24, -38, -2}, doors={{"E", -13, 5}}, skip={W=true}, extra="vrzone",
+	  floor=Color3.fromRGB(20, 30, 60), trim=Color3.fromRGB(120, 255, 200), btn={-33, -13} },
+	{ group="retro", name="Ретро-автомат", en="Retro Arcade", kind="retro", level=2,
+	  pcs={{-28,31},{-20,31},{-12,31},{-4,31}}, btnDz=-5 },
+	{ id="arena", name="Киберарена NAZAR", en="NAZAR Cyber Arena", kind="arena", level=2, btn={12, 28} },
 }
+
+-- последние покупки этажей: после них — праздник (и ребёрт после 1 этажа)
+local LAST_FLOOR1, LAST_FLOOR2 = "stage", "arena"
 
 -- Группы (ряды компов, стойки) разворачиваем в покупки по одной штуке
 do
@@ -977,9 +1003,10 @@ function builders.outer(item, origin, model, lang, plot)
 	buildWalls(model, origin, { -60, -35, 60, 35 }, doors, nil, H, WALL_COLOR)
 
 	-- закрытые двери
-	local function lockedDoor(x, z, alongX, text, color)
+	local function lockedDoor(x, z, alongX, text, color, name)
 		local size = alongX and Vector3.new(4 * S, 9, 0.6) or Vector3.new(0.6, 9, 4 * S)
 		local door = box(model, origin, size, x, 4.5, z, color, Enum.Material.Wood)
+		door.Name = name or "ЗакрытаяДверь"
 		addLabel(door, text, Color3.fromRGB(255, 230, 150), 6)
 	end
 	-- перегородка между рядом из 4 ПК и стойкой админа
@@ -987,7 +1014,7 @@ function builders.outer(item, origin, model, lang, plot)
 	box(model, origin, Vector3.new(1.3, 0.35, 34 * S), -19, 0.4, 3, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 
 	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25))
-	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30))
+	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30), "ДверьНаЛестницу")   -- откроет лестница
 	for _, z in ipairs({ -24, -8, 20 }) do
 		lockedDoor(60, z, false, T(lang, "soon"), Color3.fromRGB(70, 60, 80))
 	end
@@ -1277,6 +1304,302 @@ function builders.stage(item, origin, model, lang)
 end
 
 --=========================================================================
+-- 2 ЭТАЖ
+--=========================================================================
+
+-- экран «с игрой»: переливающийся фон + надписи (переливы анимирует Rides.client.lua)
+local function gameScreen(part, face, lines)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = face
+	gui.LightInfluence = 0
+	gui.Parent = part
+	local f = Instance.new("Frame")
+	f.Size = UDim2.fromScale(1, 1)
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = Color3.new(1, 1, 1)
+	f.Parent = gui
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 140)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(60, 200, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 40, 220)),
+	})
+	g.Parent = f
+	game:GetService("CollectionService"):AddTag(g, "GameScreen")
+	for i, text in ipairs(lines) do
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.new(1, -20, 1 / #lines - 0.06, 0)
+		t.Position = UDim2.new(0, 10, (i - 1) / #lines + 0.03, 0)
+		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.GothamBlack
+		t.TextScaled = true
+		t.TextColor3 = Color3.new(1, 1, 1)
+		t.TextStrokeTransparency = 0
+		t.Text = text
+		t.Parent = f
+	end
+end
+
+-- Лестница снаружи у левой стены: из двери VIP SOLO вдоль стены наверх
+local STAIR_X, STAIR_W = -63.2, 8.4              -- центр (клетки) и ширина (студы)
+local STAIR_Z1, STAIR_Z2, STAIR_N = -8, -30, 21  -- от двери на север, сколько ступенек
+function builders.stairs(item, origin, model, lang, plot)
+	-- дверь из VIP SOLO больше не закрыта
+	local walls = plot and plot.built.walls
+	local door = walls and walls:FindFirstChild("ДверьНаЛестницу")
+	if door then door:Destroy() end
+
+	local stone = Color3.fromRGB(60, 58, 78)
+	local rise = F2 / STAIR_N
+	local run = (STAIR_Z1 - STAIR_Z2) / STAIR_N   -- в клетках
+	for k = 1, STAIR_N do
+		local top = k * rise
+		local z = STAIR_Z1 - (k - 0.5) * run
+		box(model, origin, Vector3.new(STAIR_W, top, run * S), STAIR_X, top / 2, z, stone, Enum.Material.Concrete)
+		-- неоновая кромка ступеньки
+		box(model, origin, Vector3.new(STAIR_W, 0.15, 0.3), STAIR_X, top + 0.05, z + run / 2 - 0.1, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
+	end
+
+	-- площадка наверху (дальше — дверь на 2 этаж) и столбы под ней
+	local landZ = (STAIR_Z2 - 35) / 2
+	box(model, origin, Vector3.new(STAIR_W, 1, (STAIR_Z2 + 35) * S), STAIR_X, F2 - 0.5, landZ, stone, Enum.Material.Concrete)
+	local xo = STAIR_X - (STAIR_W / 2 - 0.2) / S   -- внешний край (клетки)
+	local xi = STAIR_X + (STAIR_W / 2 - 0.6) / S   -- у стены клуба
+	for _, x in ipairs({ xo, xi }) do
+		box(model, origin, Vector3.new(0.8, F2 - 1, 0.8), x, (F2 - 1) / 2, -34.6, stone, Enum.Material.Concrete)
+	end
+
+	-- перила: светящийся поручень, столбики и невидимая стенка, чтобы не упасть
+	local length = math.sqrt(((STAIR_Z1 - STAIR_Z2) * S) ^ 2 + F2 ^ 2)
+	local angle = math.atan2(F2, (STAIR_Z1 - STAIR_Z2) * S)
+	local zMid = (STAIR_Z1 + STAIR_Z2) / 2
+	local rail = box(model, origin, Vector3.new(0.4, 0.4, length), xo, F2 / 2 + 3.5, zMid, Color3.fromRGB(255, 210, 90), Enum.Material.Neon, { CanCollide = false })
+	rail.CFrame = rail.CFrame * CFrame.Angles(angle, 0, 0)
+	local guard = box(model, origin, Vector3.new(0.5, 4, length), xo, F2 / 2 + 2, zMid, stone, nil, { Transparency = 1 })
+	guard.CFrame = guard.CFrame * CFrame.Angles(angle, 0, 0)
+	for k = 3, STAIR_N, 3 do
+		box(model, origin, Vector3.new(0.3, 3.5, 0.3), xo, k * rise + 1.75, STAIR_Z1 - (k - 0.5) * run, Color3.fromRGB(40, 40, 50), Enum.Material.Metal)
+	end
+	local glass = Color3.fromRGB(160, 220, 255)
+	box(model, origin, Vector3.new(0.3, 3.5, (STAIR_Z2 + 35) * S), xo, F2 + 1.75, landZ, glass, Enum.Material.Glass, { Transparency = 0.5 })
+	box(model, origin, Vector3.new(STAIR_W, 3.5, 0.3), STAIR_X, F2 + 1.75, -34.9, glass, Enum.Material.Glass, { Transparency = 0.5 })
+	-- пока 2 этажа нет, с площадки не шагнуть в пустоту над клубом
+	box(model, origin, Vector3.new(0.3, 3.5, (STAIR_Z2 + 35) * S), -60.5, F2 + 1.75, landZ, glass, Enum.Material.Glass,
+		{ Transparency = 0.5, Name = "ОграждениеПлощадки" })
+
+	-- фонарь на площадке и указатель внизу
+	local lamp = box(model, origin, Vector3.new(1, 1, 1), xo, F2 + 4.2, -34.6, Color3.fromRGB(255, 230, 170), Enum.Material.Neon)
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 220, 160)
+	light.Range = 18
+	light.Parent = lamp
+	local tag = box(model, origin, Vector3.new(1, 1, 1), STAIR_X, 6, STAIR_Z1 + 1, Color3.new(), nil, { Transparency = 1, CanCollide = false })
+	addLabel(tag, lang == "ru" and "⬆ 2 ЭТАЖ" or "⬆ FLOOR 2", Color3.fromRGB(255, 220, 90), 0)
+end
+
+-- Второй этаж: перекрытие, надстройка стен, стены с окнами, свет для 1 этажа
+function builders.floor2(item, origin, model, lang, plot)
+	-- стекло на площадке лестницы убираем: тут теперь дверь
+	local stairs = plot and plot.built.stairs
+	local fence = stairs and stairs:FindFirstChild("ОграждениеПлощадки")
+	if fence then fence:Destroy() end
+
+	local H = CONFIG.WALL_HEIGHT
+	box(model, origin, Vector3.new(120 * S + 1, 1, 70 * S + 1), 0, -0.5, 0, Color3.fromRGB(62, 54, 88))   -- пол 2 этажа = потолок 1-го
+	-- стены 1 этажа надстраиваются до перекрытия, снаружи — неоновая полоса
+	local band = F2 - H
+	for _, side in ipairs({ { 0, -35, true }, { 0, 35, true }, { -60, 0, false }, { 60, 0, false } }) do
+		local wall = side[3] and Vector3.new(120 * S + 1, band, 1) or Vector3.new(1, band, 70 * S + 1)
+		local strip = side[3] and Vector3.new(120 * S + 1.4, 0.4, 1.4) or Vector3.new(1.4, 0.4, 70 * S + 1.4)
+		box(model, origin, wall, side[1], -band / 2, side[2], WALL_COLOR)
+		box(model, origin, strip, side[1], -band / 2, side[2], Color3.fromRGB(255, 60, 200), Enum.Material.Neon, { CanCollide = false })
+	end
+
+	-- стены 2 этажа: дверь с лестницы и большие окна на улицу (спереди)
+	local windows = { -40, -20, 0, 20, 40 }
+	local doors = { { "W", -32.5, 4 } }
+	for _, x in ipairs(windows) do table.insert(doors, { "S", x, 10 }) end
+	buildWalls(model, origin, { -60, -35, 60, 35 }, doors, nil, H, WALL_COLOR)
+	for _, x in ipairs(windows) do
+		box(model, origin, Vector3.new(10 * S, 3, 1), x, 1.5, 35, WALL_COLOR)                          -- подоконник
+		box(model, origin, Vector3.new(10 * S, 8, 0.4), x, 7, 35, Color3.fromRGB(150, 200, 255), Enum.Material.Glass, { Transparency = 0.55 })
+		box(model, origin, Vector3.new(10 * S, 3, 1), x, H - 1.5, 35, WALL_COLOR)                      -- над окном
+	end
+
+	-- светящиеся полосы на потолке 1 этажа
+	for _, z in ipairs({ -22, 0, 22 }) do
+		box(model, origin, Vector3.new(100 * S, 0.12, 1.2), 0, -1.06, z, Color3.fromRGB(235, 225, 255), Enum.Material.Neon, { CanCollide = false })
+	end
+
+	local sign = box(model, origin, Vector3.new(12, 2.2, 0.3), -48, 9, -34.4, Color3.fromRGB(20, 16, 34))
+	addSign(sign, Enum.NormalId.Back, lang == "ru" and "2 ЭТАЖ · FLOOR 2" or "FLOOR 2", Color3.fromRGB(255, 215, 90))
+end
+
+-- Кибер-бар: стойка, полки с бутылками, барные стулья, бармен, лимонады
+function builders.bar(item, origin, model, lang, plot)
+	box(model, origin, Vector3.new(3, 3.6, 22 * S), -53, 1.8, 17, Color3.fromRGB(70, 45, 35), Enum.Material.Wood)
+	box(model, origin, Vector3.new(3.6, 0.3, 22 * S), -53, 3.75, 17, Color3.fromRGB(30, 30, 40), Enum.Material.Marble)
+	box(model, origin, Vector3.new(0.2, 0.3, 22 * S), -53 + 1.8 / S, 3.2, 17, Color3.fromRGB(255, 60, 200), Enum.Material.Neon, { CanCollide = false })
+	-- полки с разноцветными бутылками у стены
+	for i, y in ipairs({ 5, 7.5 }) do
+		box(model, origin, Vector3.new(1.2, 0.3, 18 * S), -58.9, y, 17, Color3.fromRGB(40, 30, 25), Enum.Material.Wood)
+		for b = 0, 8 do
+			box(model, origin, Vector3.new(0.6, 1.4, 0.6), -58.9, y + 0.85, 9 + b * 2, Color3.fromHSV((b * 0.13 + i * 0.3) % 1, 0.7, 1), Enum.Material.Neon, { CanCollide = false })
+		end
+	end
+	local sign = box(model, origin, Vector3.new(0.3, 3, 14 * S), -59.4, 11, 17, Color3.fromRGB(25, 10, 30))
+	addSign(sign, Enum.NormalId.Right, "🍹 CYBER BAR", Color3.fromRGB(255, 120, 220))
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 120, 220)
+	light.Range = 22
+	light.Parent = sign
+
+	-- барные стулья: на них садятся посетители
+	for _, z in ipairs({ 9, 13.5, 18, 22.5, 27 }) do
+		box(model, origin, Vector3.new(0.5, 2.4, 0.5), -49.5, 1.2, z, Color3.fromRGB(40, 40, 45), Enum.Material.Metal)
+		local seat = Instance.new("Seat")
+		seat.Anchored = true
+		seat.Disabled = true
+		seat.Size = Vector3.new(2.2, 0.5, 2.2)
+		seat.CFrame = at(origin, -49.5, 2.6, z) * CFrame.Angles(0, math.rad(90), 0)   -- лицом к стойке
+		seat.Color = Color3.fromRGB(200, 40, 90)
+		seat.Material = Enum.Material.Fabric
+		seat.Parent = model
+		seats[seat] = { model = model }
+		if math.random() <= 0.6 then sitDown(seat, model) end
+	end
+
+	-- бармен за стойкой
+	local npc = makeNPC("Бармен", Color3.fromRGB(30, 30, 35), Color3.fromRGB(30, 30, 35))
+	if npc then
+		npc.HumanoidRootPart.Anchored = true
+		local pos = npcPoint(origin, npc, -56.5, 17)
+		npc:PivotTo(CFrame.lookAt(pos, pos + Vector3.new(1, 0, 0)))
+		npc.Parent = model
+		addLabel(npc.Head, "🍹 BAR", Color3.fromRGB(255, 120, 200), 2)
+	end
+
+	-- краны с лимонадами на стойке (цена как в клубе — x3 от уличного киоска)
+	if plot then
+		for k, kind in ipairs(Shared.LEMONADES) do
+			local tap = box(model, origin, Vector3.new(0.6, 1.2, 0.6), -53, 4.5, 10 + (k - 1) * 7, Color3.fromHSV(k * 0.27 % 1, 0.7, 1), Enum.Material.Neon)
+			lemonadePrompt(tap, kind, 3, plot)
+		end
+	end
+end
+
+-- Ретро-автомат: корпус, светящаяся вывеска, экран с игрой, джойстик
+local RETRO_GAMES = { "PAC-BYTE", "SPACE BLOCKS", "NEON RACE", "PIXEL KONG" }
+function builders.retro(item, origin, model)
+	local p = item.pcs[1]
+	local x, z = p[1], p[2]
+	local hue = ((x + 40) * 0.037) % 1
+	box(model, origin, Vector3.new(3.4, 7, 2.6), x, 3.5, z, Color3.fromHSV(hue, 0.75, 0.7))
+	box(model, origin, Vector3.new(3.6, 1.2, 2.8), x, 7.6, z, Color3.fromHSV(hue, 0.5, 1), Enum.Material.Neon)
+	local screen = box(model, origin, Vector3.new(2.8, 2.4, 0.2), x, 5, z - 1.35 / S, Color3.fromRGB(20, 20, 30), Enum.Material.Glass)
+	gameScreen(screen, Enum.NormalId.Front, { RETRO_GAMES[math.floor((x + 28) / 8) % #RETRO_GAMES + 1], "INSERT COIN" })
+	box(model, origin, Vector3.new(3.4, 0.4, 1.2), x, 3.4, z - 1.8 / S, Color3.fromRGB(25, 25, 30))
+	box(model, origin, Vector3.new(0.3, 0.8, 0.3), x - 0.6, 3.9, z - 1.8 / S, Color3.fromRGB(230, 40, 40))
+	for i = 0, 2 do
+		box(model, origin, Vector3.new(0.35, 0.25, 0.35), x + 0.1 + i * 0.4, 3.7, z - 1.8 / S, Color3.fromHSV(i / 3, 0.8, 1), Enum.Material.Neon)
+	end
+end
+
+-- VR-зона: 4 платформы со шлемами (шлем потом унесёт в космос)
+function builders.vrzone(item, origin, model, lang)
+	local isRu = lang == "ru"
+	local plate = box(model, origin, Vector3.new(10, 2, 0.3), -49, 9, -23.4, Color3.fromRGB(10, 20, 40))
+	addSign(plate, Enum.NormalId.Back, "🥽 VR ZONE", Color3.fromRGB(120, 255, 200))
+	for _, xz in ipairs({ { -54, -18 }, { -44, -18 }, { -54, -8 }, { -44, -8 } }) do
+		local x, z = xz[1], xz[2]
+		local pad = box(model, origin, Vector3.new(0.4, 6.5, 6.5), x, 0.2, z, Color3.fromRGB(30, 35, 55), Enum.Material.Metal, { Shape = Enum.PartType.Cylinder })
+		pad.CFrame = at(origin, x, 0.2, z) * CFrame.Angles(0, 0, math.rad(90))
+		local ring = box(model, origin, Vector3.new(0.2, 7.2, 7.2), x, 0.15, z, Color3.fromRGB(120, 255, 200), Enum.Material.Neon,
+			{ Shape = Enum.PartType.Cylinder, CanCollide = false })
+		ring.CFrame = at(origin, x, 0.15, z) * CFrame.Angles(0, 0, math.rad(90))
+		box(model, origin, Vector3.new(0.6, 3.6, 0.6), x + 2.2, 1.8, z, Color3.fromRGB(40, 40, 50), Enum.Material.Metal)
+		local helmet = box(model, origin, Vector3.new(1.6, 1, 1.2), x + 2.2, 4, z, Color3.fromRGB(245, 245, 250))
+		box(model, origin, Vector3.new(1.2, 0.45, 0.1), x + 2.2, 4.05, z - 0.62 / S, Color3.fromRGB(80, 200, 255), Enum.Material.Neon, { CanCollide = false })
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = isRu and "Надеть VR-шлем" or "Put on VR headset"
+		prompt.ObjectText = "🥽 VR"
+		prompt.HoldDuration = 0.5
+		prompt.MaxActivationDistance = 9
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = helmet
+		game:GetService("CollectionService"):AddTag(prompt, "VRHelmet")
+		prompt.Triggered:Connect(function(player)
+			player:SetAttribute("Toast", nil)
+			player:SetAttribute("Toast", isRu and "🚀 Космическая станция — скоро!" or "🚀 Space station — coming soon!")
+		end)
+	end
+end
+
+-- Киберарена: сцена с командами, огромный экран, трибуны со зрителями, кубок
+function builders.arena(item, origin, model, lang, plot)
+	local isRu = lang == "ru"
+	box(model, origin, Vector3.new(14 * S, 3, 40 * S), 53, 1.5, 0, Color3.fromRGB(35, 30, 60), Enum.Material.Wood)
+	box(model, origin, Vector3.new(0.4, 0.3, 40 * S), 46.1, 3.05, 0, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
+	box(model, origin, Vector3.new(2 * S, 1.5, 8 * S), 45, 0.75, 0, Color3.fromRGB(50, 45, 80), Enum.Material.Wood)   -- ступенька
+
+	-- огромный экран на правой стене
+	local screen = box(model, origin, Vector3.new(0.4, 9, 36 * S), 59.4, 8.6, 0, Color3.fromRGB(15, 15, 25))
+	gameScreen(screen, Enum.NormalId.Left, { "🏆 NAZAR ARENA · LIVE", isRu and "КРАСНЫЕ 2 : 1 СИНИЕ" or "RED 2 : 1 BLUE" })
+
+	-- команды за компами на сцене (лицом к зрителям)
+	local stage = origin * CFrame.new(0, 3, 0)
+	builders.pcs({ pcs = { { 51, -18 }, { 51, -12 }, { 51, -6 } }, rot = 90, color = Color3.fromRGB(230, 70, 70) }, stage, model)
+	builders.pcs({ pcs = { { 51, 6 }, { 51, 12 }, { 51, 18 } }, rot = 90, color = Color3.fromRGB(70, 130, 255) }, stage, model)
+	for _, t in ipairs({ { -12, isRu and "КРАСНЫЕ" or "RED TEAM", Color3.fromRGB(255, 120, 120) }, { 12, isRu and "СИНИЕ" or "BLUE TEAM", Color3.fromRGB(130, 180, 255) } }) do
+		local board = box(model, origin, Vector3.new(0.3, 2.4, 10), 57.5, 13, t[1], Color3.fromRGB(20, 16, 34))
+		addSign(board, Enum.NormalId.Left, t[2], t[3])
+	end
+
+	-- кубок на краю сцены
+	box(model, origin, Vector3.new(2, 3, 2), 47.3, 4.5, 0, Color3.fromRGB(25, 25, 30), Enum.Material.Marble)
+	local cup = box(model, origin, Vector3.new(2.2, 2.4, 2.4), 47.3, 7.2, 0, Color3.fromRGB(255, 200, 60), Enum.Material.Metal,
+		{ Shape = Enum.PartType.Cylinder, Reflectance = 0.3 })
+	cup.CFrame = at(origin, 47.3, 7.2, 0) * CFrame.Angles(0, 0, math.rad(90))
+	local star = box(model, origin, Vector3.new(0.9, 0.9, 0.9), 47.3, 9, 0, Color3.fromRGB(255, 240, 120), Enum.Material.Neon, { Shape = Enum.PartType.Ball })
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 210, 90)
+	glow.Range = 12
+	glow.Parent = star
+
+	-- трибуны: три ряда ступенями, ближний к сцене — самый низкий
+	for k, x in ipairs({ 26, 22, 18 }) do
+		local top = k * 1.2
+		box(model, origin, Vector3.new(4 * S, top, 40 * S), x, top / 2, 0, k % 2 == 0 and Color3.fromRGB(60, 40, 110) or Color3.fromRGB(45, 35, 85))
+		for _, z in ipairs({ -15, -5, 5, 15 }) do
+			local seat = Instance.new("Seat")
+			seat.Anchored = true
+			seat.Disabled = true
+			seat.Transparency = 1
+			seat.CanCollide = false
+			seat.Size = Vector3.new(2, 0.4, 2)
+			seat.CFrame = at(origin, x, top + 0.2, z) * CFrame.Angles(0, math.rad(-90), 0)   -- лицом к сцене
+			seat.Parent = model
+			seats[seat] = { model = model }
+			if math.random() <= 0.6 then sitDown(seat, model) end
+		end
+	end
+
+	-- прожекторы над сценой и вывеска
+	for _, z in ipairs({ -10, 10 }) do
+		local lamp = box(model, origin, Vector3.new(1.5, 1.5, 1.5), 57, 13.3, z, Color3.fromRGB(30, 30, 30), Enum.Material.Metal)
+		local spot = Instance.new("SpotLight")
+		spot.Face = Enum.NormalId.Bottom
+		spot.Angle = 70
+		spot.Range = 28
+		spot.Brightness = 3
+		spot.Color = z < 0 and Color3.fromRGB(255, 120, 140) or Color3.fromRGB(130, 180, 255)
+		spot.Parent = lamp
+	end
+	local tag = box(model, origin, Vector3.new(1, 1, 1), 36, 12, 0, Color3.new(), nil, { Transparency = 1, CanCollide = false })
+	addLabel(tag, "🏟 NAZAR ARENA", Color3.fromRGB(255, 215, 90), 0)
+end
+
+--=========================================================================
 -- 6. УЧАСТКИ
 --=========================================================================
 
@@ -1504,6 +1827,8 @@ local function createPlot(index)
 
 	-- кнопки покупок
 	for _, item in ipairs(ITEMS) do
+		local base = origin
+		local origin = levelOrigin(base, item)   -- кнопки 2 этажа — на 2 этаже
 		-- кнопка: серый круглый постамент + красная «шайба» сверху (без неона)
 		local button = box(model, origin, Vector3.new(0.9, 6, 6), item.btn[1], 0.75, item.btn[2], Color3.fromRGB(215, 45, 55), Enum.Material.SmoothPlastic,
 			{ Shape = Enum.PartType.Cylinder, Reflectance = 0.1 })
@@ -1566,6 +1891,7 @@ local function refreshButtons(plot)
 		local ghost = plot.ghosts[item.id]
 		if ghost then
 			local show = plot.owner ~= nil and not plot.owned[item.id]
+				and (item.level ~= 2 or plot.owned.floor2 == true)   -- над пустотой не рисуем
 			ghost.Transparency = show and 0.6 or 1
 			local g = ghost:FindFirstChildWhichIsA("BillboardGui")
 			g.Enabled = show
@@ -1645,7 +1971,7 @@ local function buildItem(plot, item, animate)
 	model.Name = item.id
 	local builder = builders[item.kind]
 	if builder then
-		builder(item, plot.origin, model, plot.lang, plot)
+		builder(item, levelOrigin(plot.origin, item), model, plot.lang, plot)
 	end
 	model.Parent = plot.model
 	plot.built[item.id] = model
@@ -1683,11 +2009,12 @@ end
 --=========================================================================
 
 local fireworks
--- Салют над сценой NAZAR CLUB
-function fireworks(plot)
+-- Салют над сценой NAZAR CLUB (или над точкой center — например, над ареной)
+function fireworks(plot, center)
+	center = center or plot.origin * CFrame.new(-5 * S, 2, -28 * S)
 	local colors = { Color3.fromRGB(255, 60, 120), Color3.fromRGB(255, 220, 60), Color3.fromRGB(80, 220, 255), Color3.fromRGB(140, 255, 100), Color3.fromRGB(200, 100, 255) }
 	for i = 1, 14 do
-		local start = (plot.origin * CFrame.new((-5 + math.random(-12, 12)) * S, 2, -28 * S)).Position
+		local start = (center * CFrame.new(math.random(-12, 12) * S, 0, 0)).Position
 		local rocket = makePart({ Size = Vector3.new(0.6, 1.6, 0.6), Position = start, Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon, CanCollide = false, Parent = plot.model })
 		local peak = start + Vector3.new(math.random(-6, 6), math.random(45, 70), math.random(-6, 6))
 		local fly = TweenService:Create(rocket, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = peak })
@@ -1782,10 +2109,15 @@ local function tryBuy(player, plot, item)
 	if item.id == "stage" then task.spawn(fireworks, plot) end
 
 	-- последняя покупка этажа: клиент покажет праздничный экран
-	if item.id == ITEMS[#ITEMS].id then
+	if item.id == LAST_FLOOR1 then
 		player:SetAttribute("Floor1Done", true)
 		Analytics.step(player, "Floor1Done")
 		Analytics.badge(player, "floor1")
+	elseif item.id == LAST_FLOOR2 then
+		task.spawn(fireworks, plot, plot.origin * CFrame.new(40 * S, F2 + 2, 0))
+		player:SetAttribute("Floor2Done", true)
+		Analytics.step(player, "Floor2Done")
+		Analytics.badge(player, "floor2")
 	end
 end
 
@@ -2097,7 +2429,8 @@ local function onPlayerAdded(player)
 
 	recalcIncome(plot)
 	refreshButtons(plot)
-	player:SetAttribute("Floor1Done", plot.owned[ITEMS[#ITEMS].id] == true)
+	player:SetAttribute("Floor1Done", plot.owned[LAST_FLOOR1] == true)
+	player:SetAttribute("Floor2Done", plot.owned[LAST_FLOOR2] == true)
 
 	local function placeCharacter(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
@@ -2115,12 +2448,31 @@ local function onPlayerAdded(player)
 			player:SetAttribute("DevReset", false)
 			clearPlot(plot)
 			player:SetAttribute("Floor1Done", false)
+			player:SetAttribute("Floor2Done", false)
 			money.Value = CONFIG.START_MONEY
 			plot.rebirths = 0
 			rebirthsValue.Value = 0
 			plot.pcTier = 1
 			plot.dailyLast = 0
 			plot.dailyStreak = 0
+			recalcIncome(plot)
+			refreshButtons(plot)
+		end)
+		-- Только в Studio: «купить всё до такой-то покупки» для проверки,
+		-- например game.Players.ИМЯ:SetAttribute("DevUnlockTo", "stage")
+		player:GetAttributeChangedSignal("DevUnlockTo"):Connect(function()
+			local target = player:GetAttribute("DevUnlockTo")
+			if not target or target == "" or not ITEM_BY_ID[target] then return end
+			player:SetAttribute("DevUnlockTo", "")
+			for _, item in ipairs(ITEMS) do
+				if not plot.owned[item.id] then
+					plot.owned[item.id] = true
+					buildItem(plot, item, false)
+				end
+				if item.id == target then break end
+			end
+			player:SetAttribute("Floor1Done", plot.owned[LAST_FLOOR1] == true)
+			player:SetAttribute("Floor2Done", plot.owned[LAST_FLOOR2] == true)
 			recalcIncome(plot)
 			refreshButtons(plot)
 		end)
@@ -2164,7 +2516,7 @@ rebirthEvent.Parent = game:GetService("ReplicatedStorage")
 rebirthEvent.OnServerEvent:Connect(function(player)
 	local plot = plotByPlayer[player]
 	if not plot or plot.owner ~= player then return end
-	if not plot.owned[ITEMS[#ITEMS].id] then return end   -- только после всего этажа
+	if not plot.owned[LAST_FLOOR1] then return end   -- только после всего 1 этажа
 
 	local keepMultiplier = plot.multiplier
 	clearPlot(plot)
@@ -2176,6 +2528,7 @@ rebirthEvent.OnServerEvent:Connect(function(player)
 	Analytics.badge(player, "rebirth")
 	player.leaderstats[CONFIG.CURRENCY_NAME].Value = CONFIG.START_MONEY
 	player:SetAttribute("Floor1Done", false)
+	player:SetAttribute("Floor2Done", false)
 	recalcIncome(plot)
 	refreshButtons(plot)
 	savePlayer(player)

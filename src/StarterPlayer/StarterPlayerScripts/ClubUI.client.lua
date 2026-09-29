@@ -194,11 +194,17 @@ doneLabel.Font = Enum.Font.GothamBold
 doneLabel.TextSize = 16
 doneLabel.TextColor3 = Color3.fromRGB(255, 215, 90)
 doneLabel.TextStrokeTransparency = 0.5
-doneLabel.Text = isRu and "🏆 Этаж 1 построен · 2 этаж — скоро!" or "🏆 Floor 1 complete · Floor 2 coming soon!"
+local function doneText()
+	if player:GetAttribute("Floor2Done") then
+		return isRu and "🏆 Клуб построен целиком · жми РЕБЁРТ!" or "🏆 Whole club built · hit REBIRTH!"
+	end
+	return isRu and "🏆 Этаж 1 построен · поднимайся на 2 этаж!" or "🏆 Floor 1 complete · go up to Floor 2!"
+end
+doneLabel.Text = doneText()
 doneLabel.Visible = player:GetAttribute("Floor1Done") == true
 doneLabel.Parent = screen
 
-local function celebrate()
+local function celebrate(floor2)
 	local banner = Instance.new("Frame")
 	banner.Size = UDim2.new(0, 560, 0, 190)
 	banner.Position = UDim2.new(0.5, -280, 0.5, -95)
@@ -217,7 +223,11 @@ local function celebrate()
 	title.Font = Enum.Font.GothamBlack
 	title.TextScaled = true
 	title.TextColor3 = Color3.fromRGB(255, 215, 90)
-	title.Text = isRu and "🏆 КЛУБ ПОСТРОЕН!" or "🏆 CLUB COMPLETE!"
+	if floor2 then
+		title.Text = isRu and "🏟 КИБЕРАРЕНА ОТКРЫТА!" or "🏟 CYBER ARENA OPEN!"
+	else
+		title.Text = isRu and "🏆 ЭТАЖ 1 ПОСТРОЕН!" or "🏆 FLOOR 1 COMPLETE!"
+	end
 	title.Parent = banner
 
 	local sub = Instance.new("TextLabel")
@@ -228,9 +238,15 @@ local function celebrate()
 	sub.TextScaled = true
 	sub.TextWrapped = true
 	sub.TextColor3 = Color3.new(1, 1, 1)
-	sub.Text = isRu
-		and "Ты построил лучший киберклуб в городе!\nЖми РЕБЁРТ — начни заново с двойным доходом!"
-		or "You built the best cyber club in town!\nHit REBIRTH to start over with double income!"
+	if floor2 then
+		sub.Text = isRu
+			and "Ты построил лучший киберклуб в городе!\nЖми РЕБЁРТ — начни заново с большим доходом!"
+			or "You built the best cyber club in town!\nHit REBIRTH to start over with more income!"
+	else
+		sub.Text = isRu
+			and "Лестница на 2 этаж — в VIP SOLO!\nИли жми РЕБЁРТ — начни заново с большим доходом."
+			or "Stairs to Floor 2 are in VIP SOLO!\nOr hit REBIRTH to start over with more income."
+	end
 	sub.Parent = banner
 
 	-- конфетти
@@ -320,6 +336,11 @@ player:GetAttributeChangedSignal("Floor1Done"):Connect(refreshRebirth)
 player:GetAttributeChangedSignal("Floor1Done"):Connect(function()
 	local done = player:GetAttribute("Floor1Done") == true
 	-- при входе в игру атрибут приходит с сервера — это не новая победа
-	if done and not doneLabel.Visible and os.clock() - joinedAt > 5 then celebrate() end
+	if done and not doneLabel.Visible and os.clock() - joinedAt > 5 then celebrate(false) end
+	doneLabel.Text = doneText()
 	doneLabel.Visible = done
+end)
+player:GetAttributeChangedSignal("Floor2Done"):Connect(function()
+	if player:GetAttribute("Floor2Done") and os.clock() - joinedAt > 5 then celebrate(true) end
+	doneLabel.Text = doneText()
 end)

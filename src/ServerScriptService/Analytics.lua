@@ -37,6 +37,7 @@ A.ONBOARDING = {
 	"Purchase15",      -- 7
 	"Purchase30",      -- 8 половина этажа
 	"Floor1Done",      -- 9 весь этаж
+	"Floor2Done",      -- 10 весь 2 этаж
 }
 local STEP_INDEX = {}
 for i, name in ipairs(A.ONBOARDING) do STEP_INDEX[name] = i end
