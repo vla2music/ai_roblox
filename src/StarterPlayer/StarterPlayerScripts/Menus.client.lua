@@ -11,6 +11,8 @@ local ReplicatedStorage  = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local SocialService      = game:GetService("SocialService")
 local TweenService       = game:GetService("TweenService")
+local UserInputService   = game:GetService("UserInputService")
+local GuiService         = game:GetService("GuiService")
 
 local player = Players.LocalPlayer
 local Shared = require(ReplicatedStorage:WaitForChild("ClubShared"))
@@ -115,11 +117,27 @@ local function makeWindow(title, accent)
 	return win, body
 end
 
+-- Джойстик: при открытии окна выделяем первую кнопку в нём
+local function firstButton(root)
+	for _, d in ipairs(root:GetDescendants()) do
+		if d:IsA("GuiButton") and d.Visible and d.Selectable and d.Text ~= "X" then return d end
+	end
+end
+
 local function show(win, refresh)
 	if openWindow and openWindow ~= win then openWindow.Visible = false end
 	openWindow = win
 	win.Visible = not win.Visible
 	if win.Visible and refresh then task.spawn(refresh) end
+	if UserInputService.GamepadEnabled then
+		if win.Visible then
+			task.delay(0.2, function()
+				if win.Visible then GuiService.SelectedObject = firstButton(win) end
+			end)
+		else
+			GuiService.SelectedObject = nil
+		end
+	end
 end
 
 local function section(body, title, color, order)
@@ -624,5 +642,32 @@ task.spawn(function()
 			pr.ActionText = L("Купить · ", "Buy · ") .. short(price)
 		end
 		task.wait(2)
+	end
+end)
+
+--=========================================================================
+-- Джойстик (PlayStation / Xbox):
+--   Y (△)  — перейти к кнопкам слева / выйти из меню
+--   B (○)  — закрыть открытое окно
+--   стрелки — выбор кнопки, A (✕) — нажать
+--=========================================================================
+local padHint = text(screen, {
+	Size = UDim2.new(0, 96, 0, 22), Position = UDim2.new(0, 12, 0.5, 216),
+	Text = "△ / Y — " .. L("меню", "menu"), Font = Enum.Font.GothamBold,
+	Visible = UserInputService.GamepadEnabled,
+})
+UserInputService.GamepadConnected:Connect(function() padHint.Visible = true end)
+UserInputService.GamepadDisconnected:Connect(function() padHint.Visible = UserInputService.GamepadEnabled end)
+
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.ButtonY then
+		if GuiService.SelectedObject then
+			GuiService.SelectedObject = nil
+		else
+			GuiService.SelectedObject = shopBtn
+		end
+	elseif input.KeyCode == Enum.KeyCode.ButtonB and openWindow and openWindow.Visible then
+		openWindow.Visible = false
+		GuiService.SelectedObject = shopBtn
 	end
 end)

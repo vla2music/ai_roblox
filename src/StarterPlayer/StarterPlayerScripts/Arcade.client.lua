@@ -261,11 +261,24 @@ local function hockey()
 		end
 	end
 
+	-- пока идёт хоккей, левый стик двигает биту, а не персонажа
+	local CAS = game:GetService("ContextActionService")
+	CAS:BindActionAtPriority("HockeyStick", function() return Enum.ContextActionResult.Sink end,
+		false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Thumbstick1)
 	while running == "hockey" and os.clock() - t0 < T do
 		local dt = math.min(RunService.RenderStepped:Wait(), 1 / 30)
 		info.Text = L("🏒 Ты ", "🏒 You ") .. myGoals .. " : " .. botGoals .. L(" Бот", " Bot") .. "   ⏳ " .. math.ceil(T - (os.clock() - t0))
 		-- моя бита за мышкой / пальцем, только своя половина
 		local m = UserInputService:GetMouseLocation() - rink.AbsolutePosition   -- окно без отступа сверху (IgnoreGuiInset)
+		if UserInputService:GetLastInputType().Name:find("Gamepad") then
+			-- джойстик: левый стик двигает биту
+			local stick = Vector2.zero
+			for _, st in ipairs(UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1)) do
+				if st.KeyCode == Enum.KeyCode.Thumbstick1 then stick = Vector2.new(st.Position.X, -st.Position.Y) end
+			end
+			if stick.Magnitude < 0.15 then stick = Vector2.zero end
+			m = mePos + stick * W * 1.6 * dt
+		end
 		local target = Vector2.new(math.clamp(m.X, MR, W - MR), math.clamp(m.Y, Hh / 2 + MR, Hh - MR))
 		local newPos = mePos:Lerp(target, math.min(1, dt * 20))
 		meVel = (newPos - mePos) / dt
@@ -295,6 +308,7 @@ local function hockey()
 		me.Position = UDim2.fromOffset(mePos.X, mePos.Y)
 		bot.Position = UDim2.fromOffset(botPos.X, botPos.Y)
 	end
+	CAS:UnbindAction("HockeyStick")
 	finish("hockey", myGoals)
 end
 
