@@ -12,6 +12,7 @@ local Zones = {
 	ORIGINS = {
 		workshop = CFrame.new(-3000, 800, 0),
 		computer = CFrame.new(-3000, 800, 1000),
+		space    = CFrame.new(-3000, 1500, 2000),
 	},
 	spots = {},   -- имя -> где появляется игрок
 	back = {},    -- игрок -> куда вернуть

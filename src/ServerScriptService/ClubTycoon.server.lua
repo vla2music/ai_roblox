@@ -1551,8 +1551,8 @@ function builders.vrzone(item, origin, model, lang)
 		prompt.Parent = helmet
 		game:GetService("CollectionService"):AddTag(prompt, "VRHelmet")
 		prompt.Triggered:Connect(function(player)
-			player:SetAttribute("Toast", nil)
-			player:SetAttribute("Toast", isRu and "🚀 Космическая станция — скоро!" or "🚀 Space station — coming soon!")
+			-- шлем уносит на космическую станцию (SpaceStation.server.lua), назад — к этой платформе
+			Zones.enter(player, "space", CFrame.new(helmet.Position + Vector3.new(-3, -1, 0)))
 		end)
 	end
 end
