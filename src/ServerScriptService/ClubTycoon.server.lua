@@ -408,6 +408,8 @@ local TEXT = {
 		object    = "Банкомат",
 		locked    = "🔒 %s\n%s",
 		soon      = "🔒 СКОРО",
+		afterFloor = "🔒 Откроется\nпосле %d этажа",
+		workshop  = "🔧 МАСТЕРСКАЯ\nскоро",
 		secret    = "???",
 	},
 	en = {
@@ -420,6 +422,8 @@ local TEXT = {
 		object    = "ATM",
 		locked    = "🔒 %s\n%s",
 		soon      = "🔒 COMING SOON",
+		afterFloor = "🔒 Opens after\nfloor %d",
+		workshop  = "🔧 WORKSHOP\ncoming soon",
 		secret    = "???",
 	},
 }
@@ -1015,8 +1019,9 @@ function builders.outer(item, origin, model, lang, plot)
 
 	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25))
 	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30), "ДверьНаЛестницу")   -- откроет лестница
-	for _, z in ipairs({ -24, -8, 20 }) do
-		lockedDoor(60, z, false, T(lang, "soon"), Color3.fromRGB(70, 60, 80))
+	-- правые двери открываются по очереди: после 2, 3 и 4 этажа (надписи — refreshDoors)
+	for i, z in ipairs({ -24, -8, 20 }) do
+		lockedDoor(60, z, false, T(lang, "afterFloor", i + 1), Color3.fromRGB(70, 60, 80), "ДверьСправа" .. i)
 	end
 
 	-- Входная дверь: стеклянная, раздвижная. Открыть/закрыть может только
@@ -1435,26 +1440,40 @@ function builders.floor2(item, origin, model, lang, plot)
 	addSign(sign, Enum.NormalId.Back, lang == "ru" and "2 ЭТАЖ · FLOOR 2" or "FLOOR 2", Color3.fromRGB(255, 215, 90))
 end
 
--- Кибер-бар: стойка, полки с бутылками, барные стулья, бармен, лимонады
+-- Кибер-бар: только лимонады и кофе (игра для всех возрастов — никакого алкоголя).
+-- Стойка, банки с лимонадом, кофемашина, стулья с посетителями, бариста.
 function builders.bar(item, origin, model, lang, plot)
 	box(model, origin, Vector3.new(3, 3.6, 22 * S), -53, 1.8, 17, Color3.fromRGB(70, 45, 35), Enum.Material.Wood)
 	box(model, origin, Vector3.new(3.6, 0.3, 22 * S), -53, 3.75, 17, Color3.fromRGB(30, 30, 40), Enum.Material.Marble)
-	box(model, origin, Vector3.new(0.2, 0.3, 22 * S), -53 + 1.8 / S, 3.2, 17, Color3.fromRGB(255, 60, 200), Enum.Material.Neon, { CanCollide = false })
-	-- полки с разноцветными бутылками у стены
+	box(model, origin, Vector3.new(0.2, 0.3, 22 * S), -53 + 1.8 / S, 3.2, 17, Color3.fromRGB(255, 200, 60), Enum.Material.Neon, { CanCollide = false })
+	-- полки у стены: большие банки с лимонадом разных цветов и стаканчики
+	local jars = {}
+	for _, kind in ipairs(Shared.LEMONADES) do table.insert(jars, kind.color) end
 	for i, y in ipairs({ 5, 7.5 }) do
 		box(model, origin, Vector3.new(1.2, 0.3, 18 * S), -58.9, y, 17, Color3.fromRGB(40, 30, 25), Enum.Material.Wood)
-		for b = 0, 8 do
-			box(model, origin, Vector3.new(0.6, 1.4, 0.6), -58.9, y + 0.85, 9 + b * 2, Color3.fromHSV((b * 0.13 + i * 0.3) % 1, 0.7, 1), Enum.Material.Neon, { CanCollide = false })
+		for b = 0, 5 do
+			local z = 9.5 + b * 3
+			local jar = box(model, origin, Vector3.new(1.6, 1, 1), -58.9, y + 0.95, z, Color3.fromRGB(200, 230, 255), Enum.Material.Glass,
+				{ Shape = Enum.PartType.Cylinder, Transparency = 0.6, CanCollide = false })
+			jar.CFrame = at(origin, -58.9, y + 0.95, z) * CFrame.Angles(0, 0, math.rad(90))
+			local juice = box(model, origin, Vector3.new(1.1, 0.8, 0.8), -58.9, y + 0.75, z, jars[(b + i) % #jars + 1], Enum.Material.Neon,
+				{ Shape = Enum.PartType.Cylinder, CanCollide = false })
+			juice.CFrame = at(origin, -58.9, y + 0.75, z) * CFrame.Angles(0, 0, math.rad(90))
 		end
 	end
+	-- кофемашина на краю стойки
+	local coffee = box(model, origin, Vector3.new(2, 2.4, 1.8), -53, 5.1, 26, Color3.fromRGB(45, 45, 50), Enum.Material.Metal)
+	box(model, origin, Vector3.new(0.1, 0.5, 1.2), -53 + 1.02 / S, 5.8, 26, Color3.fromRGB(80, 255, 160), Enum.Material.Neon, { CanCollide = false })
+	box(model, origin, Vector3.new(0.6, 0.6, 0.6), -53 + 0.8 / S, 4.2, 26, Color3.fromRGB(245, 240, 230))   -- чашка
+
 	local sign = box(model, origin, Vector3.new(0.3, 3, 14 * S), -59.4, 11, 17, Color3.fromRGB(25, 10, 30))
-	addSign(sign, Enum.NormalId.Right, "🍹 CYBER BAR", Color3.fromRGB(255, 120, 220))
+	addSign(sign, Enum.NormalId.Right, "🍋 CYBER BAR ☕", Color3.fromRGB(255, 220, 90))
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 120, 220)
+	light.Color = Color3.fromRGB(255, 200, 120)
 	light.Range = 22
 	light.Parent = sign
 
-	-- барные стулья: на них садятся посетители
+	-- стулья у стойки: на них садятся посетители
 	for _, z in ipairs({ 9, 13.5, 18, 22.5, 27 }) do
 		box(model, origin, Vector3.new(0.5, 2.4, 0.5), -49.5, 1.2, z, Color3.fromRGB(40, 40, 45), Enum.Material.Metal)
 		local seat = Instance.new("Seat")
@@ -1462,29 +1481,30 @@ function builders.bar(item, origin, model, lang, plot)
 		seat.Disabled = true
 		seat.Size = Vector3.new(2.2, 0.5, 2.2)
 		seat.CFrame = at(origin, -49.5, 2.6, z) * CFrame.Angles(0, math.rad(90), 0)   -- лицом к стойке
-		seat.Color = Color3.fromRGB(200, 40, 90)
+		seat.Color = Color3.fromRGB(230, 170, 40)
 		seat.Material = Enum.Material.Fabric
 		seat.Parent = model
 		seats[seat] = { model = model }
 		if math.random() <= 0.6 then sitDown(seat, model) end
 	end
 
-	-- бармен за стойкой
-	local npc = makeNPC("Бармен", Color3.fromRGB(30, 30, 35), Color3.fromRGB(30, 30, 35))
+	-- бариста за стойкой
+	local npc = makeNPC("Бариста", Color3.fromRGB(240, 240, 245), Color3.fromRGB(60, 40, 30))
 	if npc then
 		npc.HumanoidRootPart.Anchored = true
 		local pos = npcPoint(origin, npc, -56.5, 17)
 		npc:PivotTo(CFrame.lookAt(pos, pos + Vector3.new(1, 0, 0)))
 		npc.Parent = model
-		addLabel(npc.Head, "🍹 BAR", Color3.fromRGB(255, 120, 200), 2)
+		addLabel(npc.Head, lang == "ru" and "☕ ЛИМОНАД И КОФЕ" or "☕ LEMONADE & COFFEE", Color3.fromRGB(255, 220, 120), 2)
 	end
 
-	-- краны с лимонадами на стойке (цена как в клубе — x3 от уличного киоска)
+	-- краны с лимонадами и кофемашина (цена как в клубе — x3 от уличного киоска)
 	if plot then
 		for k, kind in ipairs(Shared.LEMONADES) do
-			local tap = box(model, origin, Vector3.new(0.6, 1.2, 0.6), -53, 4.5, 10 + (k - 1) * 7, Color3.fromHSV(k * 0.27 % 1, 0.7, 1), Enum.Material.Neon)
+			local tap = box(model, origin, Vector3.new(0.6, 1.2, 0.6), -53, 4.5, 10 + (k - 1) * 5.5, kind.color, Enum.Material.Neon)
 			lemonadePrompt(tap, kind, 3, plot)
 		end
+		lemonadePrompt(coffee, Shared.COFFEE, 3, plot)
 	end
 end
 
@@ -1871,6 +1891,20 @@ local function isAvailable(plot, item)
 		and (item.needs == nil or plot.owned[item.needs] == true)
 end
 
+-- Правые двери: первая открывается после 2 этажа, вторая — после 3-го, третья — после 4-го
+local function refreshDoors(plot)
+	local walls = plot.built.walls
+	if not walls then return end
+	for i = 1, 3 do
+		local door = walls:FindFirstChild("ДверьСправа" .. i)
+		local gui = door and door:FindFirstChildWhichIsA("BillboardGui")
+		if gui then
+			local open = i == 1 and plot.owned[LAST_FLOOR2] == true
+			gui.Text.Text = open and T(plot.lang, "workshop") or T(plot.lang, "afterFloor", i + 1)
+		end
+	end
+end
+
 -- Показывать нужно только те кнопки, которые уже доступны по цепочке
 local function refreshButtons(plot)
 	local next_ = nil
@@ -1909,6 +1943,8 @@ local function refreshButtons(plot)
 		plot.owner:SetAttribute("NextCost", nextItem and nextItem.cost or 0)
 		plot.owner:SetAttribute("NextPos", nextItem and plot.buttons[nextItem.id].Position or nil)
 	end
+
+	refreshDoors(plot)
 
 	if next_ then
 		plot.arrow.CFrame = CFrame.new(next_.Position + Vector3.new(0, 7, 0)) * CFrame.Angles(math.rad(180), 0, 0)

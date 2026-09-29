@@ -54,6 +54,9 @@ Shared.LEMONADES = {
 	{ order = 3, key = "mega",  ru = "Мега-лимонад",    en = "Mega Lemonade",  energy = 100, seconds = 16, minPrice = 35, color = Color3.fromRGB(80, 220, 255) },
 }
 
+-- Кофе — только в Кибер-баре на 2 этаже
+Shared.COFFEE = { key = "coffee", ru = "Кофе", en = "Coffee", energy = 60, seconds = 10, minPrice = 25, color = Color3.fromRGB(120, 75, 45) }
+
 -- Значки (Creator Hub → игра → Engagement → Badges → Create), потом ID сюда.
 -- 0 = ещё не создан, значок не выдаётся (код уже готов).
 Shared.BADGES = {
