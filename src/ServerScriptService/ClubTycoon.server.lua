@@ -274,6 +274,7 @@ local function parseData(result)
 		totalEarned = tonumber(result.totalEarned) or 0,
 		dailyLast = tonumber(result.dailyLast) or 0,
 		dailyStreak = tonumber(result.dailyStreak) or 0,
+		keyCards = tonumber(result.keyCards) or 0,   -- найденные ключ-карты (биты 1, 2, 4)
 	}
 end
 
@@ -327,7 +328,7 @@ local function saveData(userId, data, release)
 			return {
 				money = data.money, owned = data.owned, rebirths = data.rebirths,
 				pcTier = data.pcTier, dailyLast = data.dailyLast, dailyStreak = data.dailyStreak,
-				playTime = data.playTime, totalEarned = data.totalEarned,
+				playTime = data.playTime, totalEarned = data.totalEarned, keyCards = data.keyCards,
 				lock = (not release) and { job = game.JobId, t = os.time() } or nil,
 			}
 		end)
@@ -1018,7 +1019,7 @@ function builders.outer(item, origin, model, lang, plot)
 	box(model, origin, Vector3.new(1, H - 2, 34 * S), -19, (H - 2) / 2, 3, INNER_COLOR)
 	box(model, origin, Vector3.new(1.3, 0.35, 34 * S), -19, 0.4, 3, NEON_TRIM, Enum.Material.Neon, { CanCollide = false })
 
-	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25))
+	lockedDoor(8, -35, true, T(lang, "secret"), Color3.fromRGB(20, 20, 25), "ТайнаяДверь")   -- в «Внутри компьютера»
 	lockedDoor(-60, -5, false, T(lang, "soon"), Color3.fromRGB(120, 90, 30), "ДверьНаЛестницу")   -- откроет лестница
 	-- правые двери открываются по очереди: после 2, 3 и 4 этажа (надписи — refreshDoors)
 	for i, z in ipairs({ -24, -8, 20 }) do
@@ -1923,6 +1924,29 @@ local function refreshDoors(plot)
 		end
 		if prompt then prompt.Enabled = open end
 	end
+
+	-- тайная дверь «???»: пускает того, кто нашёл 3 ключ-карты в городе
+	local secret = walls:FindFirstChild("ТайнаяДверь")
+	if secret and not secret:FindFirstChild("ВходВЗону") then
+		local pr = Instance.new("ProximityPrompt")
+		pr.Name = "ВходВЗону"
+		pr.ActionText = plot.lang == "ru" and "Войти" or "Enter"
+		pr.ObjectText = "???"
+		pr.HoldDuration = 0.5
+		pr.MaxActivationDistance = 10
+		pr.RequiresLineOfSight = false
+		pr.Triggered:Connect(function(player)
+			local mask = player:GetAttribute("KeyCards") or 0
+			local found = (mask % 2) + (math.floor(mask / 2) % 2) + (math.floor(mask / 4) % 2)
+			if found < 3 then
+				player:SetAttribute("Toast", nil)
+				player:SetAttribute("Toast", (langOf(player) == "ru" and "🔑 Найди 3 ключ-карты в городе: " or "🔑 Find 3 key cards around town: ") .. found .. "/3")
+				return
+			end
+			Zones.enter(player, "computer", at(plot.origin, 8, 3, -31))
+		end)
+		pr.Parent = secret
+	end
 end
 
 -- Показывать нужно только те кнопки, которые уже доступны по цепочке
@@ -2433,6 +2457,7 @@ local function onPlayerAdded(player)
 	player:SetAttribute("FreeLemonade", 1)   -- один бесплатный лимонад на старте
 	player:SetAttribute("PlayTime", data.playTime or 0)
 	player:SetAttribute("TotalEarned", data.totalEarned or 0)
+	player:SetAttribute("KeyCards", data.keyCards or 0)
 	local lastMoney = money.Value
 	money:GetPropertyChangedSignal("Value"):Connect(function()
 		local diff = money.Value - lastMoney
@@ -2551,6 +2576,7 @@ local function collectData(player)
 		pcTier = plot and plot.pcTier or 1,
 		playTime = player:GetAttribute("PlayTime") or 0,
 		totalEarned = player:GetAttribute("TotalEarned") or 0,
+		keyCards = player:GetAttribute("KeyCards") or 0,
 		dailyLast = plot and plot.dailyLast or 0,
 		dailyStreak = plot and plot.dailyStreak or 0,
 	}
