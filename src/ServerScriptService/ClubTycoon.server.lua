@@ -8,7 +8,7 @@
 
 	Планировка — по рисунку Назара (первый этаж):
 	  слева комнаты PlayStation / VIP SOLO / Стрим, внизу серверная и туалет,
-	  в центре банкомат, сцена с фото, магазин, стойка админа, лаунж,
+	  в центре банкомат, сцена NAZAR CLUB, магазин, стойка админа, лаунж,
 	  справа чемпионатная и общий зал с компами.
 ==========================================================================]]
 
@@ -70,24 +70,6 @@ local CONFIG = {
 
 	-- Ковролин для пола (создан в Studio, лежит в MaterialService)
 	FLOOR_MATERIAL_VARIANT = "ClubCarpet",
-
-	-- Фото владельца на сцене. Когда загрузим картинку — впиши её ID сюда.
-	POSTER_IMAGE   = "",   -- реальные фото детей Roblox запрещает (правило о личных данных). Только аватар!
-	-- Видео владельца на сцене (важнее фото). Впиши ID после загрузки
-	-- на create.roblox.com, например "rbxassetid://1234567890".
-	POSTER_VIDEO   = "",
-	POSTER_VIDEO_VOLUME = 0.5,
-	-- Бесплатная замена видео: «мультик» из кадров в одной картинке
-	-- (раскадровка 6x4, кадр 170x248) + отдельный звук.
-	POSTER_FLIPBOOK = {
-		image  = "",   -- ID картинки media/nazar_spritesheet.png
-		sound  = "",   -- ID звука media/nazar_sound.mp3
-		cols   = 6, rows = 4,
-		frameW = 170, frameH = 248,
-		length = 5.17,  -- секунд на весь ролик
-		pause  = 3,     -- пауза на последнем кадре перед повтором
-		volume = 0.5,
-	},
 
 	-- Банкомат: сам выбрасывает монетки на площадку,
 	-- а если жать E рядом с ним — выбрасывает ещё и бонусные.
@@ -182,7 +164,7 @@ local ITEMS = {
 	{ id="vip", name="VIP SOLO", en="VIP SOLO", cost=130000, income=250, needs="console",
 	  kind="room", rect={-60, -14, -40, 3}, doors={{"E", -5, 4}}, skip={W=true, N=true, S=true}, extra="vip",
 	  floor=Color3.fromRGB(90, 70, 20), btn={-36, -5} },
-	{ id="stage", name="Сцена с фото владельца", en="Stage & Owner Photo", cost=180000, income=350, needs="vip",
+	{ id="stage", name="Сцена NAZAR CLUB", en="NAZAR CLUB Stage", cost=180000, income=350, needs="vip",
 	  kind="stage", btn={-5, -21} },
 }
 
@@ -401,7 +383,6 @@ local TEXT = {
 		locked    = "🔒 %s\n%s",
 		soon      = "🔒 СКОРО",
 		secret    = "???",
-		poster    = "ФОТО ВЛАДЕЛЬЦА\nскоро",
 	},
 	en = {
 		free      = "FREE",
@@ -414,7 +395,6 @@ local TEXT = {
 		locked    = "🔒 %s\n%s",
 		soon      = "🔒 COMING SOON",
 		secret    = "???",
-		poster    = "OWNER PHOTO\ncoming soon",
 	},
 }
 
@@ -1243,7 +1223,7 @@ function builders.champDivider(item, origin, model, lang)
 	addSign(vs, Enum.NormalId.Front, "5 × 5", Color3.fromRGB(255, 230, 120))
 end
 
--- Сцена: подиум со ступеньками, занавес, большой портрет владельца, прожекторы
+-- Сцена: подиум со ступеньками, занавес, вывеска NAZAR CLUB, прожекторы
 function builders.stage(item, origin, model, lang)
 	local x0, z0 = -5, -30
 	-- подиум и ступеньки
