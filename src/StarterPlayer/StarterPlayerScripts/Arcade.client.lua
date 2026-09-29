@@ -5,6 +5,7 @@
 	⏱️ timing  — Стоп на зелёном: 10 раундов, зона всё уже
 	🧱 stacker — Башня: ставь блоки ровно, промах обрезает блок
 	🏒 hockey  — Аэрохоккей против бота, 60 сек
+	🔧 buildpc — Собери ПК (Мастерская, Workshop.server.lua): 45 сек
 	Награду считает и проверяет сервер (MiniGame в ClubTycoon), раз в 5 минут.
 ==========================================================================]]
 
@@ -34,6 +35,7 @@ local screen = Instance.new("ScreenGui")
 screen.Name = "Arcade"
 screen.ResetOnSpawn = false
 screen.IgnoreGuiInset = true
+screen.DisplayOrder = 10   -- окно игры поверх панели монет и кнопки ребёрта
 screen.Parent = player:WaitForChild("PlayerGui")
 
 local function corner(o, r) local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, r or 12) c.Parent = o end
@@ -57,7 +59,7 @@ corner(win, 18)
 local st = Instance.new("UIStroke") st.Color = Color3.fromRGB(255, 50, 200) st.Thickness = 3 st.Parent = win
 local title = new("TextLabel", win, { Size = UDim2.fromScale(0.7, 0.08), Position = UDim2.fromScale(0.04, 0.02), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(0, 230, 255) })
 local info = new("TextLabel", win, { Size = UDim2.fromScale(0.92, 0.06), Position = UDim2.fromScale(0.04, 0.1), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold })
-local closeBtn = new("TextButton", win, { Size = UDim2.fromScale(0.08, 0.08), Position = UDim2.fromScale(0.9, 0.02), Text = "✕", BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(200, 50, 70) })
+local closeBtn = new("TextButton", win, { Size = UDim2.fromScale(0.08, 0.08), Position = UDim2.fromScale(0.9, 0.02), Text = "X", BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(200, 50, 70) })
 corner(closeBtn, 10)
 local area = new("Frame", win, { Size = UDim2.fromScale(0.92, 0.78), Position = UDim2.fromScale(0.04, 0.18), BackgroundColor3 = Color3.fromRGB(8, 6, 16), BackgroundTransparency = 0, ClipsDescendants = true })
 corner(area, 12)
@@ -315,12 +317,122 @@ end
 --=========================================================================
 -- Запуск по кнопке у автомата
 --=========================================================================
+--=========================================================================
+-- 🔧 Собери ПК: выбери деталь справа и нажми её место в корпусе
+--=========================================================================
+local PC_PARTS = {
+	{ "🎮", L("Видеокарта", "Graphics card") },
+	{ "⚙️", L("Процессор", "Processor") },
+	{ "🧠", L("Память", "Memory") },
+	{ "🔌", L("Блок питания", "Power supply") },
+	{ "💾", L("Диск", "SSD drive") },
+}
+local SLOT_SPOTS = { { 0.05, 0.15 }, { 0.53, 0.15 }, { 0.05, 0.43 }, { 0.53, 0.43 }, { 0.29, 0.71 } }
+
+local function shuffled(n)
+	local t = {}
+	for i = 1, n do t[i] = i end
+	for i = n, 2, -1 do
+		local j = math.random(i)
+		t[i], t[j] = t[j], t[i]
+	end
+	return t
+end
+
+local function buildpc()
+	local GuiService = game:GetService("GuiService")
+	local score, T = 0, 45
+	local t0 = os.clock()
+	while running == "buildpc" and os.clock() - t0 < T do
+		clearArea()
+		local board = new("Frame", area, { Size = UDim2.fromScale(0.54, 0.92), Position = UDim2.fromScale(0.02, 0.04),
+			BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(18, 70, 45) })
+		corner(board, 10)
+		new("TextLabel", board, { Size = UDim2.fromScale(0.9, 0.09), Position = UDim2.fromScale(0.05, 0.03), Text = L("КОРПУС ПК", "PC CASE"), TextColor3 = Color3.fromRGB(150, 255, 180) })
+		local placed, selected = 0, nil
+		-- места в корпусе (каждый раз в другом порядке)
+		for i, k in ipairs(shuffled(#PC_PARTS)) do
+			local slot = new("TextButton", board, { Size = UDim2.fromScale(0.42, 0.24), Position = UDim2.fromScale(SLOT_SPOTS[i][1], SLOT_SPOTS[i][2]),
+				BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(10, 40, 25), Text = PC_PARTS[k][2], TextColor3 = Color3.fromRGB(120, 200, 150) })
+			corner(slot, 8)
+			local sStroke = Instance.new("UIStroke")
+			sStroke.Color = Color3.fromRGB(120, 255, 170)
+			sStroke.Thickness = 2
+			sStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			sStroke.Parent = slot
+			slot.MouseButton1Click:Connect(function()
+				if running ~= "buildpc" or not selected or slot:GetAttribute("Done") then return end
+				if selected.key == k then
+					slot:SetAttribute("Done", true)
+					slot.Text = PC_PARTS[k][1] .. " " .. PC_PARTS[k][2]
+					slot.TextColor3 = Color3.new(1, 1, 1)
+					slot.BackgroundColor3 = Color3.fromRGB(40, 160, 90)
+					selected.button:Destroy()
+					selected = nil
+					placed += 1
+				else
+					-- не то место: мигает красным
+					slot.BackgroundColor3 = Color3.fromRGB(180, 40, 50)
+					task.delay(0.25, function()
+						if slot.Parent and not slot:GetAttribute("Done") then slot.BackgroundColor3 = Color3.fromRGB(10, 40, 25) end
+					end)
+				end
+			end)
+		end
+		-- детали справа (в другом порядке)
+		local first
+		for j, k in ipairs(shuffled(#PC_PARTS)) do
+			local b = new("TextButton", area, { Size = UDim2.fromScale(0.38, 0.16), Position = UDim2.fromScale(0.6, 0.05 + (j - 1) * 0.185),
+				BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(45, 40, 70), Text = PC_PARTS[k][1] .. " " .. PC_PARTS[k][2] })
+			corner(b, 8)
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = Color3.fromRGB(255, 215, 80)
+			stroke.Thickness = 0
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Parent = b
+			b.MouseButton1Click:Connect(function()
+				if running ~= "buildpc" then return end
+				if selected and selected.button.Parent then selected.stroke.Thickness = 0 end
+				selected = { key = k, button = b, stroke = stroke }
+				stroke.Thickness = 4
+			end)
+			first = first or b
+		end
+		if UserInputService.GamepadEnabled then GuiService.SelectedObject = first end
+		while running == "buildpc" and placed < #PC_PARTS and os.clock() - t0 < T do
+			info.Text = L("🔧 Собрано ПК: ", "🔧 PCs built: ") .. score .. "   ⏳ " .. math.ceil(T - (os.clock() - t0))
+			task.wait(0.1)
+		end
+		if placed == #PC_PARTS then
+			score += 1
+			new("TextLabel", area, { Size = UDim2.fromScale(0.5, 0.2), Position = UDim2.fromScale(0.04, 0.4), Text = "✅ " .. L("ПК собран!", "PC built!"),
+				TextColor3 = Color3.fromRGB(120, 255, 150), ZIndex = 5 })
+			task.wait(0.5)
+		end
+	end
+	if UserInputService.GamepadEnabled then GuiService.SelectedObject = nil end
+	finish("buildpc", score)
+end
+
 local GAMES = {
 	shoot   = { L("🎯 ТИР", "🎯 SHOOTING"), shoot },
 	timing  = { L("⏱️ СТОП НА ЗЕЛЁНОМ", "⏱️ STOP ON GREEN"), timing },
 	stacker = { L("🧱 БАШНЯ", "🧱 STACKER"), stacker },
 	hockey  = { L("🏒 АЭРОХОККЕЙ", "🏒 AIR HOCKEY"), hockey },
+	buildpc = { L("🔧 СОБЕРИ ПК", "🔧 BUILD A PC"), buildpc },
 }
+
+-- подписи у автоматов и дверей зон — на языке игрока
+ProximityPromptService.PromptShown:Connect(function(prompt)
+	local name = prompt:GetAttribute("ArcadeGame")
+	if name and GAMES[name] then
+		prompt.ActionText = L("Играть", "Play")
+		prompt.ObjectText = GAMES[name][1]
+	elseif prompt:GetAttribute("ZoneExit") then
+		prompt.ActionText = L("Назад в клуб", "Back to club")
+		prompt.ObjectText = "🚪"
+	end
+end)
 
 ProximityPromptService.PromptTriggered:Connect(function(prompt)
 	local name = prompt:GetAttribute("ArcadeGame")

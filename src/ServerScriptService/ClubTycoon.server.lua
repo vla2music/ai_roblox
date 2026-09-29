@@ -26,6 +26,7 @@ local MaterialService    = game:GetService("MaterialService")
 local templates = ServerStorage:FindFirstChild("Шаблоны")
 local Shared = require(game:GetService("ReplicatedStorage"):WaitForChild("ClubShared"))
 local Analytics = require(script.Parent:WaitForChild("Analytics"))   -- аналитика, значки, обучение
+local Zones = require(script.Parent:WaitForChild("Zones"))           -- миры за дверями клуба (Мастерская...)
 
 --=========================================================================
 -- 1. НАСТРОЙКИ
@@ -409,7 +410,7 @@ local TEXT = {
 		locked    = "🔒 %s\n%s",
 		soon      = "🔒 СКОРО",
 		afterFloor = "🔒 Откроется\nпосле %d этажа",
-		workshop  = "🔧 МАСТЕРСКАЯ\nскоро",
+		workshop  = "🔧 МАСТЕРСКАЯ\nзаходи!",
 		secret    = "???",
 	},
 	en = {
@@ -423,7 +424,7 @@ local TEXT = {
 		locked    = "🔒 %s\n%s",
 		soon      = "🔒 COMING SOON",
 		afterFloor = "🔒 Opens after\nfloor %d",
-		workshop  = "🔧 WORKSHOP\ncoming soon",
+		workshop  = "🔧 WORKSHOP\ncome in!",
 		secret    = "???",
 	},
 }
@@ -1891,17 +1892,36 @@ local function isAvailable(plot, item)
 		and (item.needs == nil or plot.owned[item.needs] == true)
 end
 
--- Правые двери: первая открывается после 2 этажа, вторая — после 3-го, третья — после 4-го
+-- Правые двери: первая открывается после 2 этажа, вторая — после 3-го, третья — после 4-го.
+-- Открытая дверь переносит в свою зону (Zones): 1 — Мастерская «Собери ПК».
+local DOOR_ZONES = { { zone = "workshop", z = -24 } }
 local function refreshDoors(plot)
 	local walls = plot.built.walls
 	if not walls then return end
 	for i = 1, 3 do
 		local door = walls:FindFirstChild("ДверьСправа" .. i)
 		local gui = door and door:FindFirstChildWhichIsA("BillboardGui")
+		local info = DOOR_ZONES[i]
+		local open = info ~= nil and i == 1 and plot.owned[LAST_FLOOR2] == true
 		if gui then
-			local open = i == 1 and plot.owned[LAST_FLOOR2] == true
-			gui.Text.Text = open and T(plot.lang, "workshop") or T(plot.lang, "afterFloor", i + 1)
+			gui.Text.Text = open and T(plot.lang, info.zone) or T(plot.lang, "afterFloor", i + 1)
 		end
+		local prompt = door and door:FindFirstChild("ВходВЗону")
+		if open and not prompt then
+			prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "ВходВЗону"
+			prompt.ActionText = plot.lang == "ru" and "Войти" or "Enter"
+			prompt.ObjectText = gui and gui.Text.Text:gsub("\n.*", "") or ""
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 10
+			prompt.RequiresLineOfSight = false
+			prompt.Triggered:Connect(function(player)
+				-- вернёт к этой же двери, внутрь клуба
+				Zones.enter(player, info.zone, at(plot.origin, 56, 3, info.z) * CFrame.Angles(0, math.rad(90), 0))
+			end)
+			prompt.Parent = door
+		end
+		if prompt then prompt.Enabled = open end
 	end
 end
 
@@ -2659,6 +2679,8 @@ local MINIGAMES = {
 	timing  = { maxScore = 10, good = 7,  time = 5, rate = 0.8 },
 	stacker = { maxScore = 30, good = 12, time = 4, rate = 1.5 },
 	hockey  = { maxScore = 10, good = 5,  time = 60 },
+	-- Мастерская (Workshop.server.lua): сколько ПК собрал за 45 сек
+	buildpc = { maxScore = 12, good = 5,  time = 45, rate = 0.3 },
 }
 local MINIGAME_COOLDOWN = 300
 local MINIGAME_TIME = 60
